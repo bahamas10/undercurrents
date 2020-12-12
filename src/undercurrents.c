@@ -16,6 +16,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 
+#include "particle.h"
 #include "ryb2rgb.h"
 
 #define WINDOW_WIDTH 1200
@@ -30,27 +31,14 @@
 #define LINE_DISTANCE_VARIANCE 200
 #define EXPAND_RATE 0.020
 #define RINGS_MAXIMUM 30
-#define ALPHA_BACKGROUND 0.045
+#define ALPHA_BACKGROUND 0.025
 #define ALPHA_ELEMENTS 0.10
-
-/*
- * A single floating orb
- */
-typedef struct Particle {
-	float position;
-	float height;
-	unsigned int radius;
-	unsigned int lineDistance;
-	int speed;
-	int x;
-	int y;
-} Particle;
 
 /*
  * A linked-list for particles
  */
 typedef struct ParticleNode {
-	struct Particle *particle;
+	Particle *particle;
 	struct ParticleNode *next;
 } ParticleNode;
 
@@ -110,76 +98,6 @@ void *safeMalloc(size_t size, const char *msg) {
 	return ptr;
 }
 
-/* Particle */
-
-/*
- * Print a particle object
- */
-void *printParticle(Particle *p) {
-	printf("<Particle position=%f height=%f x=%f y=%f radius=%u lineDistance=%u speed=%d>\n",
-	    p->position, p->height, p->x, p->y, p->radius, p->lineDistance, p->speed);
-}
-
-/*
- * recalculate the x and y positions of a particle
- */
-void particleCalculateCoordinates(Particle *p) {
-	while (p->position > 360) {
-		p->position -= 360;
-	}
-	p->x = p->height * sin(M_PI_2 + p->position);
-	p->y = p->height * cos(M_PI_2 + p->position);
-}
-
-/*
- * Initialize Particle
- */
-void *initializeParticle(Particle *p, unsigned int radius, unsigned int height,
-    int speed, unsigned int lineDistance, float position) {
-
-	assert(p != NULL);
-
-	p->height = height;
-	p->radius = radius;
-	p->speed = speed;
-	p->lineDistance = lineDistance;
-	p->position = rand() % 360;
-
-	particleCalculateCoordinates(p);
-}
-
-
-/*
- * Create an empty Particle object
- */
-Particle *makeEmptyParticle() {
-	Particle *p = safeMalloc(sizeof (Particle), "makeParticle malloc");
-	particleCount++;
-	return p;
-}
-
-/*
- * Create a Particle object - must be freed by the caller
- */
-Particle *makeParticle(unsigned int radius, unsigned int height, int speed,
-    unsigned int lineDistance, float position) {
-
-	Particle *p = makeEmptyParticle();
-
-	initializeParticle(p, radius, height, speed, lineDistance, position);
-
-	return p;
-}
-
-/*
- * Free a particle object
- */
-void *freeParticle(Particle *p) {
-	free(p);
-}
-
-/* end particle */
-
 void randomizeParticle(Particle *p) {
 	int speed = (rand() % (SPEED_MAXIMUM * 2)) - SPEED_MAXIMUM;
 	unsigned int radius = RADIUS_MINIMUM + (rand() % RADIUS_VARIANCE);
@@ -193,11 +111,18 @@ void randomizeParticle(Particle *p) {
 		speed *= -1;
 	}
 
-	initializeParticle(p, radius, height, speed, lineDistance, position);
+	particleInit(p, radius, height, speed, lineDistance, position);
+}
+
+Particle *createParticle() {
+	Particle *p = particleCreate();
+	assert(p != NULL);
+	particleCount++;
+	return p;
 }
 
 Particle *makeRandomizedParticle() {
-	Particle *p = makeEmptyParticle();
+	Particle *p = createParticle();
 	randomizeParticle(p);
 
 	return p;
@@ -212,7 +137,7 @@ ParticleNode *makeOrReclaimRandomizedParticleNode() {
 		// allocate a new particle and particleNode
 		particleNode = safeMalloc(sizeof (ParticleNode),
 		    "makeOrReclaimParticleNode malloc ParticleNode");
-		p = makeEmptyParticle();
+		p = createParticle();
 
 		particleNode->particle = p;
 	} else {
@@ -239,17 +164,6 @@ void addRing() {
 
 	rings = ringNode;
 	ringCount++;
-}
-
-ParticleNode *makeParticleNode() {
-	ParticleNode *particleNode = safeMalloc(sizeof (ParticleNode),
-	    "makeParticleNode malloc ParticleNode");
-	Particle *particle = makeRandomizedParticle();
-
-	particleNode->particle = particle;
-	particleNode->next = NULL;
-
-	return particleNode;
 }
 
 void recycleLastRing() {
@@ -469,6 +383,11 @@ int main(int argc, char **argv) {
 						assert(head->particle);
 						// TODO fix this height bs
 						new->particle->height = head->particle->height + (rand() % HEIGHT_VARIANCE);
+						/*
+						if (i < 5) {
+							new->particle->lineDistance = 0;
+						}
+						*/
 					}
 
 					new->next = head;
