@@ -26,11 +26,12 @@ Particle *particleCreate() {
 /*
  * Initialize Particle
  */
-void *particleInit(Particle *p, unsigned int radius, unsigned int height,
-    int speed, unsigned int lineDistance, float position) {
+void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
+    int height, int speed, unsigned int lineDistance, float position) {
 
 	assert(p != NULL);
 
+	p->bornTimer = bornTimer;
 	p->height = height;
 	p->radius = radius;
 	p->speed = speed;
@@ -44,8 +45,8 @@ void *particleInit(Particle *p, unsigned int radius, unsigned int height,
  * Print a particle object
  */
 void *particlePrint(Particle *p) {
-	printf("<Particle position=%f height=%f x=%f y=%f radius=%u lineDistance=%u speed=%d>\n",
-	    p->position, p->height, p->x, p->y, p->radius, p->lineDistance, p->speed);
+	printf("<Particle bornTimer=%d position=%f height=%f x=%f y=%f radius=%u lineDistance=%u speed=%d>\n",
+	    p->bornTimer, p->position, p->height, p->x, p->y, p->radius, p->lineDistance, p->speed);
 }
 
 /*

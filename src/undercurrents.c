@@ -31,8 +31,9 @@
 #define LINE_DISTANCE_VARIANCE 200
 #define EXPAND_RATE 0.020
 #define RINGS_MAXIMUM 30
-#define ALPHA_BACKGROUND 0.025
+#define ALPHA_BACKGROUND 0.032
 #define ALPHA_ELEMENTS 0.10
+#define PARTICLE_BORN_TIMER_MAXIMUM 1000
 
 /*
  * A linked-list for particles
@@ -103,6 +104,7 @@ void randomizeParticle(Particle *p) {
 	unsigned int radius = RADIUS_MINIMUM + (rand() % RADIUS_VARIANCE);
 	unsigned int height = HEIGHT_MINIMUM + (rand() % HEIGHT_VARIANCE);
 	unsigned int lineDistance = LINE_DISTANCE_MINIMUM + (rand() % LINE_DISTANCE_VARIANCE);
+	int bornTimer = rand() % PARTICLE_BORN_TIMER_MAXIMUM;
 	float position = rand() % 360;
 
 	assert(p != NULL);
@@ -111,7 +113,7 @@ void randomizeParticle(Particle *p) {
 		speed *= -1;
 	}
 
-	particleInit(p, radius, height, speed, lineDistance, position);
+	particleInit(p, bornTimer, radius, height, speed, lineDistance, position);
 }
 
 Particle *createParticle() {
@@ -426,6 +428,13 @@ int main(int argc, char **argv) {
 				p->height += (float)delta * expandRate;
 				p->position += (float)p->speed / (float)delta / 100.0f;
 				particleCalculateCoordinates(p);
+
+				if (p->bornTimer != 0) {
+					p->bornTimer -= delta;
+					if (p->bornTimer < 0) {
+						p->bornTimer = 0;
+					}
+				}
 			}
 
 		}
@@ -451,6 +460,11 @@ int main(int argc, char **argv) {
 			for (; particlePtr != NULL; particlePtr = particlePtr->next) {
 				Particle *p = particlePtr->particle;
 
+				// check if particle is born
+				if (p->bornTimer > 0) {
+					continue;
+				}
+
 				// draw the particle
 				DrawParticle(p);
 
@@ -459,6 +473,10 @@ int main(int argc, char **argv) {
 				ParticleNode *particlePtr2 = particlePtr->next;;
 				for (; particlePtr2 != NULL; particlePtr2 = particlePtr2->next) {
 					Particle *p2 = particlePtr2->particle;
+
+					if (p2->bornTimer > 0) {
+						continue;
+					}
 
 					float yd = (WINDOW_HEIGHT / 2 + p2->y) - (WINDOW_HEIGHT / 2 + p->y);
 					float xd = (WINDOW_WIDTH / 2 + p2->x) - (WINDOW_HEIGHT / 2 + p->x);
