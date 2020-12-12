@@ -30,7 +30,7 @@
 #define LINE_DISTANCE_MINIMUM 0
 #define LINE_DISTANCE_VARIANCE 200
 #define EXPAND_RATE 0.020
-#define RINGS_MAXIMUM 30
+#define RINGS_MAXIMUM 35
 #define ALPHA_BACKGROUND 0.032
 #define ALPHA_ELEMENTS 0.10
 #define PARTICLE_BORN_TIMER_MAXIMUM 1000
@@ -277,6 +277,8 @@ int main(int argc, char **argv) {
 	srand(time(NULL));
 
 	bool running = true;
+	float alphaElements = ALPHA_ELEMENTS;
+	float alphaBackground = ALPHA_BACKGROUND;
 	float x = 0;
 	float y = 500;
 	float expandRate = EXPAND_RATE;
@@ -295,6 +297,7 @@ int main(int argc, char **argv) {
 	printf("- press up / down to modify expansion rate\n");
 	printf("- press left / right to modify max rings\n");
 	printf("- press 'r' to randomize colors\n");
+	printf("- press 'f' to toggle fade\n");
 	printf("\n");
 
 	// main loop
@@ -319,22 +322,31 @@ int main(int argc, char **argv) {
 					break;
 				case SDLK_UP:
 					expandRate += 0.001;
-					printf("expandRate = %f\n", expandRate);
+-                                       printf("expandRate = %f\n", expandRate);
 					break;
 				case SDLK_DOWN:
 					expandRate -= 0.001;
-					printf("expandRate = %f\n", expandRate);
+-                                       printf("expandRate = %f\n", expandRate);
 					break;
 				case SDLK_LEFT:
-					maxRings--;
-					if (maxRings < 0) {
-						maxRings = 0;
+					if (maxRings > 0) {
+						maxRings--;
 					}
 					printf("maxRings = %u\n", maxRings);
 					break;
 				case SDLK_RIGHT:
 					maxRings++;
 					printf("maxRings = %u\n", maxRings);
+					break;
+				case SDLK_f:
+					if (alphaElements == 1.0) {
+						alphaElements = ALPHA_ELEMENTS;
+						alphaBackground = ALPHA_BACKGROUND;
+					} else {
+						alphaElements = 1.0;
+						alphaBackground = 1.0;
+					}
+					printf("alphaElemnts=%f alphaBackground=%f\n", alphaElements, alphaBackground);
 					break;
 				case SDLK_r:
 					randomizeMagic(randomMagic);
@@ -358,14 +370,14 @@ int main(int argc, char **argv) {
 
 			while (fpsCounter <= 0) { fpsCounter += 1000; }
 
+			// add a new ring
+			addRing();
+
 			// recycle out-of-view rings
 			while (ringCount > maxRings) {
 				recycleLastRing();
 				ringCount--;
 			}
-
-			// add a new ring
-			addRing();
 
 			// add a particle to each existing ring
 			ringPtr = rings;
@@ -440,13 +452,10 @@ int main(int argc, char **argv) {
 		}
 
 		// clear screen
-		glColor4f(0.0f, 0.0f, 0.0f, ALPHA_BACKGROUND);
+		glColor4f(0.0f, 0.0f, 0.0f, alphaBackground);
 		glRecti(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
 		// draw the particles and lines
-		glColor4f(0.0f, 0.0f, 1.0f, ALPHA_ELEMENTS);
-		//glColor4f(0.0f, 0.0f, 1.0f, ALPHA_ELEMENTS);
-
 		ringPtr = rings;
 		for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
 			ParticleNode *particlePtr = ringPtr->particleNode;
@@ -454,7 +463,7 @@ int main(int argc, char **argv) {
 			int idx = (rainbowIdx + (i * MAX_COLORS / RINGS_MAXIMUM)) % MAX_COLORS;
 			RGB rgb = rainbow(idx);
 			rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, randomMagic);
-			glColor4f(rgb.r, rgb.g, rgb.b, ALPHA_ELEMENTS);
+			glColor4f(rgb.r, rgb.g, rgb.b, alphaElements);
 
 			// loop particles in ring
 			for (; particlePtr != NULL; particlePtr = particlePtr->next) {

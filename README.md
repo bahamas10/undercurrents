@@ -15,6 +15,7 @@ Make sure `sdl2` is installed.  Run `make` to compile the program:
     - press up / down to modify expansion rate
     - press left / right to modify max rings
     - press 'r' to randomize colors
+    - press 'f' to toggle fade
 
     fps=9.900990 ringCount=0 particleCount=0 recycledParticles=0
     fps=62.500000 ringCount=1 particleCount=2 recycledParticles=0
