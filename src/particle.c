@@ -27,7 +27,8 @@ Particle *particleCreate() {
  * Initialize Particle
  */
 void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
-    int height, int speed, unsigned int lineDistance, float position) {
+    int height, int speed, unsigned int lineDistance, float position, unsigned
+    int color) {
 
 	assert(p != NULL);
 
@@ -37,6 +38,7 @@ void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
 	p->speed = speed;
 	p->lineDistance = lineDistance;
 	p->position = position;
+	p->color = color;
 
 	particleCalculateCoordinates(p);
 }
@@ -45,19 +47,25 @@ void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
  * Print a particle object
  */
 void *particlePrint(Particle *p) {
-	printf("<Particle bornTimer=%d position=%f height=%f x=%f y=%f radius=%u lineDistance=%u speed=%d>\n",
-	    p->bornTimer, p->position, p->height, p->x, p->y, p->radius, p->lineDistance, p->speed);
+	printf("<Particle bornTimer=%d position=%f height=%f x=%f y=%f \
+	    radius=%u lineDistance=%u speed=%d color=%u>\n",
+	    p->bornTimer, p->position, p->height, p->x, p->y, p->radius,
+	    p->lineDistance, p->speed, p->color);
 }
 
 /*
  * recalculate the x and y positions of a particle
  */
 void particleCalculateCoordinates(Particle *p) {
-	while (p->position > 360) {
-		p->position -= 360;
-	}
-	p->x = p->height * sin(M_PI_2 + p->position);
-	p->y = p->height * cos(M_PI_2 + p->position);
+	while (p->position >= 360.0) { p->position -= 360.0; }
+	while (p->position < 0) { p->position += 360.0; }
+
+	// shift degrees over 270 degrees (from 3 o'clock to 12 o'clock)
+	float degrees = p->position + 270.0f;
+	float radians = degrees * M_PI / 180.0;
+
+	p->x = p->height * cos(radians);
+	p->y = p->height * sin(radians);
 }
 
 /*

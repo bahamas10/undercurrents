@@ -30,10 +30,21 @@
 #define LINE_DISTANCE_MINIMUM 0
 #define LINE_DISTANCE_VARIANCE 200
 #define EXPAND_RATE 0.020
-#define RINGS_MAXIMUM 35
+#define RINGS_MAXIMUM 34
 #define ALPHA_BACKGROUND 0.032
 #define ALPHA_ELEMENTS 0.10
 #define PARTICLE_BORN_TIMER_MAXIMUM 1000
+#define COLOR_SPEED 50
+
+/*
+ * Color modes
+ */
+enum ColorMode {
+	ColorModeSolid,
+	ColorModeRinged,
+	ColorModeCircular,
+	ColorModeIndividual
+};
 
 /*
  * A linked-list for particles
@@ -63,6 +74,7 @@ ParticleNode *freeParticleNodes = NULL;
 RGB rainbow(unsigned int idx) {
 	assert(idx >= 0);
 	assert(idx < MAX_COLORS);
+	//idx = MAX_COLORS - idx - 1;
 
 	RGB rgb;
 	float a, b, c;
@@ -104,6 +116,7 @@ void randomizeParticle(Particle *p) {
 	unsigned int radius = RADIUS_MINIMUM + (rand() % RADIUS_VARIANCE);
 	unsigned int height = HEIGHT_MINIMUM + (rand() % HEIGHT_VARIANCE);
 	unsigned int lineDistance = LINE_DISTANCE_MINIMUM + (rand() % LINE_DISTANCE_VARIANCE);
+	unsigned int color = rand() % MAX_COLORS;
 	int bornTimer = rand() % PARTICLE_BORN_TIMER_MAXIMUM;
 	float position = rand() % 360;
 
@@ -113,7 +126,7 @@ void randomizeParticle(Particle *p) {
 		speed *= -1;
 	}
 
-	particleInit(p, bornTimer, radius, height, speed, lineDistance, position);
+	particleInit(p, bornTimer, radius, height, speed, lineDistance, position, color);
 }
 
 Particle *createParticle() {
@@ -258,6 +271,13 @@ void randomizeMagic(float magic[8][3]) {
 	}
 }
 
+void setColor(unsigned int idx, float magic[8][3], float alpha) {
+	idx = idx % MAX_COLORS;
+	RGB rgb = rainbow(idx);
+	rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, magic);
+	glColor4f(rgb.r, rgb.g, rgb.b, alpha);
+}
+
 int main(int argc, char **argv) {
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetSwapInterval(1);
@@ -276,21 +296,21 @@ int main(int argc, char **argv) {
 
 	srand(time(NULL));
 
+	RGB rgb;
 	bool running = true;
-	float alphaElements = ALPHA_ELEMENTS;
 	float alphaBackground = ALPHA_BACKGROUND;
-	float x = 0;
-	float y = 500;
+	float alphaElements = ALPHA_ELEMENTS;
 	float expandRate = EXPAND_RATE;
-	int fpsCounter = 0;
-	int rainbowCounter = 0;
-	int magicCounter = 0;
-	unsigned int currentTime;
-	unsigned int lastTime = 0;
-	unsigned int delta;
-	unsigned int rainbowIdx = 0;
-	unsigned int maxRings = RINGS_MAXIMUM;
+	float rainbowIdx = 0;
 	float randomMagic[8][3];
+	int currentColorMode = ColorModeSolid;
+	int fpsCounter = 0;
+	int magicCounter = 0;
+	int rainbowCounter = 0;
+	unsigned int currentTime;
+	unsigned int delta;
+	unsigned int lastTime = 0;
+	unsigned int maxRings = RINGS_MAXIMUM;
 
 	randomizeMagic(randomMagic);
 
@@ -346,12 +366,16 @@ int main(int argc, char **argv) {
 						alphaElements = 1.0;
 						alphaBackground = 1.0;
 					}
-					printf("alphaElemnts=%f alphaBackground=%f\n", alphaElements, alphaBackground);
+					printf("alphaElemnts=%f alphaBackground=%f\n",
+					    alphaElements, alphaBackground);
 					break;
 				case SDLK_r:
 					randomizeMagic(randomMagic);
 					printf("randomized colors\n");
 					break;
+				case SDLK_m:
+					currentColorMode = (currentColorMode + 1) % 4;
+					printf("currentColorMode = %d\n", currentColorMode);
 				default:
 					break;
 				}
@@ -366,7 +390,6 @@ int main(int argc, char **argv) {
 		if (fpsCounter <= 0) {
 			printf("fps=%f ringCount=%u particleCount=%u recycledParticles=%u\n",
 			    1000.0 / delta, ringCount, particleCount, recycledParticles);
-
 
 			while (fpsCounter <= 0) { fpsCounter += 1000; }
 
@@ -383,12 +406,14 @@ int main(int argc, char **argv) {
 			ringPtr = rings;
 			for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
 				int num = (i / 4) + 2;
+
 				/*
 				ParticleNode *head = ringPtr->particleNode;
 				int count = 0;
 				while (head != NULL) { head = head->next; count++; }
 				printf("ring %d has %d elements\n", i, count);
 				*/
+
 				for (int j = 0; j < num; j++) {
 					ParticleNode *head = ringPtr->particleNode;
 					ParticleNode *new = makeOrReclaimRandomizedParticleNode();
@@ -397,25 +422,12 @@ int main(int argc, char **argv) {
 						assert(head->particle);
 						// TODO fix this height bs
 						new->particle->height = head->particle->height + (rand() % HEIGHT_VARIANCE);
-						/*
-						if (i < 5) {
-							new->particle->lineDistance = 0;
-						}
-						*/
 					}
 
 					new->next = head;
 					ringPtr->particleNode = new;
 				}
 			}
-		}
-
-		rainbowCounter -= delta;
-		if (rainbowCounter <= 0) {
-			while (rainbowCounter <= 0) {
-				rainbowCounter += 2;
-			}
-			rainbowIdx = (rainbowIdx + 1) % (256 * 6);
 		}
 
 		magicCounter -= delta;
@@ -426,6 +438,11 @@ int main(int argc, char **argv) {
 			// NOT USED currently
 			//randomizeMagic(randomMagic);
 		}
+
+		// Update rainbow index
+		rainbowIdx += (float)delta / 1000.0 * COLOR_SPEED;
+		while (rainbowIdx > MAX_COLORS) { rainbowIdx -= MAX_COLORS; }
+		while (rainbowIdx <= 0) { rainbowIdx += MAX_COLORS; }
 
 		// calculate new particle locations
 		ringPtr = rings;
@@ -438,9 +455,10 @@ int main(int argc, char **argv) {
 
 				// update particle location
 				p->height += (float)delta * expandRate;
-				p->position += (float)p->speed / (float)delta / 100.0f;
+				p->position += (float)p->speed / (float)delta;
 				particleCalculateCoordinates(p);
 
+				// reduce bornTimer by delta
 				if (p->bornTimer != 0) {
 					p->bornTimer -= delta;
 					if (p->bornTimer < 0) {
@@ -455,15 +473,20 @@ int main(int argc, char **argv) {
 		glColor4f(0.0f, 0.0f, 0.0f, alphaBackground);
 		glRecti(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-		// draw the particles and lines
+		if (currentColorMode == ColorModeSolid) {
+			setColor(rainbowIdx, randomMagic, alphaElements);
+		}
+
+		// draw the particles and lines, start by looping rings
 		ringPtr = rings;
 		for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
 			ParticleNode *particlePtr = ringPtr->particleNode;
 
-			int idx = (rainbowIdx + (i * MAX_COLORS / RINGS_MAXIMUM)) % MAX_COLORS;
-			RGB rgb = rainbow(idx);
-			rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, randomMagic);
-			glColor4f(rgb.r, rgb.g, rgb.b, alphaElements);
+			// set color here if ringed mode
+			if (currentColorMode == ColorModeRinged) {
+				unsigned int idx = rainbowIdx + (i * MAX_COLORS / RINGS_MAXIMUM);
+				setColor(idx, randomMagic, alphaElements);
+			}
 
 			// loop particles in ring
 			for (; particlePtr != NULL; particlePtr = particlePtr->next) {
@@ -472,6 +495,15 @@ int main(int argc, char **argv) {
 				// check if particle is born
 				if (p->bornTimer > 0) {
 					continue;
+				}
+
+				// set color here if circular mode or random mode
+				if (currentColorMode == ColorModeCircular) {
+					unsigned int idx = (unsigned int)(p->position / 360.0 * (float)MAX_COLORS);
+					idx = (idx + (int)rainbowIdx) % MAX_COLORS;
+					setColor(idx, randomMagic, alphaElements);
+				} else if (currentColorMode == ColorModeIndividual) {
+					setColor(p->color + rainbowIdx, randomMagic, alphaElements);
 				}
 
 				// draw the particle
@@ -503,7 +535,6 @@ int main(int argc, char **argv) {
 
 		// swap windows
 		SDL_GL_SwapWindow(Window);
-
 		SDL_Delay(1);
 	}
 

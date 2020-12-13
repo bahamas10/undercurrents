@@ -11,6 +11,7 @@ typedef struct Particle {
 	float height;
 	unsigned int radius;
 	unsigned int lineDistance;
+	unsigned int color;
 	int speed;
 	int bornTimer;
 	int x;
@@ -19,7 +20,8 @@ typedef struct Particle {
 
 Particle *particleCreate();
 void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
-    int height, int speed, unsigned int lineDistance, float position);
+    int height, int speed, unsigned int lineDistance, float position, unsigned
+    int color);
 void *particlePrint(Particle *p);
 void particleCalculateCoordinates(Particle *p);
 void *particleDestroy(Particle *p);
