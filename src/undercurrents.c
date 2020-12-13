@@ -318,6 +318,7 @@ int main(int argc, char **argv) {
 	printf("- press left / right to modify max rings\n");
 	printf("- press 'r' to randomize colors\n");
 	printf("- press 'f' to toggle fade\n");
+	printf("- press 'm' to toggle color modes\n");
 	printf("\n");
 
 	// main loop
