@@ -99,6 +99,16 @@
 #define ALPHA_ELEMENTS 0.10
 
 /*
+ * Time (in milliseconds) to do certain tasks
+ *
+ * TIMER_PRINT_STATUS_LINE - how often to print the status line, 0 to disable.
+ * TIMER_ADD_NEW_RING - how often to add a new ring / orbit.
+ *
+ */
+#define TIMER_PRINT_STATUS_LINE 2000
+#define TIMER_ADD_NEW_RING 1000
+
+/*
  * Color modes
  */
 enum ColorMode {
@@ -472,8 +482,8 @@ int main(int argc, char **argv) {
 	float rainbowIdx = 0;
 	float randomMagic[8][3];
 	int currentColorMode = ColorModeSolid;
-	int fpsCounter = 0;
-	int ringCounter = 0;
+	int printStatusLineCounter = 0;
+	int addNewRingCounter = 0;
 	unsigned int currentTime;
 	unsigned int delta;
 	unsigned int expandRate = PARTICLE_EXPAND_RATE;
@@ -554,21 +564,30 @@ int main(int argc, char **argv) {
 		}
 
 		// process timing stats
-		fpsCounter -= delta;
-		if (fpsCounter <= 0) {
-			while (fpsCounter <= 0) { fpsCounter += 2000; }
+		printStatusLineCounter -= delta;
+		if (printStatusLineCounter <= 0) {
+			printStatusLineCounter += TIMER_PRINT_STATUS_LINE;
 
 			printf("fps=%f ringCount=%u particleCount=%u "
 			    "recycledParticles=%u\n",
 			    1000.0 / delta, ringCount, particleCount,
 			    recycledParticles);
+
+			int i = 0;
+			while (printStatusLineCounter <= 0) {
+				i++;
+				printStatusLineCounter += TIMER_PRINT_STATUS_LINE;
+			}
+			if (i > 0) {
+				printf("[warn] missed %d status line calls\n", i);
+			}
 		}
 
 
 
-		ringCounter -= delta;
-		if (ringCounter <= 0) {
-			while (ringCounter <= 0) { ringCounter += 1000; }
+		addNewRingCounter -= delta;
+		if (addNewRingCounter <= 0) {
+			addNewRingCounter += TIMER_ADD_NEW_RING;
 
 			// add a new ring
 			addRing();
@@ -598,6 +617,15 @@ int main(int argc, char **argv) {
 					new->next = head;
 					ringPtr->particleNode = new;
 				}
+			}
+
+			int i = 0;
+			while (addNewRingCounter <= 0) {
+				i++;
+				addNewRingCounter += TIMER_ADD_NEW_RING;
+			}
+			if (i > 0) {
+				printf("[warn] missed %d add ring calls\n", i);
 			}
 		}
 
