@@ -3,6 +3,10 @@
  *
  * A fun visualizer using C and OpenGL
  *
+ * Inspired from:
+ * - https://www.renderforest.com/template/melodic-vibes-visualizer
+ * - https://pcvector.net/codepen/760-sverkajuschie-krugi-iz-chastic.html
+ *
  * Author: Dave Eddy <dave@daveeddy.com>
  * Date: December 12, 2020
  * License: MIT
@@ -95,8 +99,8 @@
  * The alpha value to use (when fading is enabled) when clearing the screen
  * (ALPHA_BACKGROUND) and when drawing the particles or lines (ALPHA_ELEMENTS).
  */
-#define ALPHA_BACKGROUND 0.032
-#define ALPHA_ELEMENTS 0.10
+#define ALPHA_BACKGROUND 3
+#define ALPHA_ELEMENTS 10
 
 /*
  * Time (in milliseconds) to do certain tasks
@@ -148,6 +152,31 @@ unsigned int recycledParticles = 0;
 
 // The free particle list
 ParticleNode *freeParticleNodes = NULL;
+
+// If fading mode is enabled or disabled
+bool fadingMode = true;
+
+/*
+ * All of the #defines above made available as global variables that can be
+ * modified at runtime with CLI options.
+ */
+int windowWidth = WINDOW_WIDTH;
+int windowHeight = WINDOW_HEIGHT;
+int particleSpeedMaximum = PARTICLE_SPEED_MAXIMUM;
+int particleRadiusMinimum = PARTICLE_RADIUS_MINIMUM;
+int particleRadiusMaximum = PARTICLE_RADIUS_MAXIMUM;
+int particleHeightMinimum = PARTICLE_HEIGHT_MINIMUM;
+int particleHeightMaximum = PARTICLE_HEIGHT_MAXIMUM;
+int particleLineDistanceMinimum = PARTICLE_LINE_DISTANCE_MINIMUM;
+int particleLineDistanceMaximum = PARTICLE_LINE_DISTANCE_MAXIMUM;
+int particleExpandRate = PARTICLE_EXPAND_RATE;
+int particleBornTimerMaximum = PARTICLE_BORN_TIMER_MAXIMUM;
+int particleColorSpeed = PARTICLE_COLOR_SPEED;
+int ringsMaximum = RINGS_MAXIMUM;
+int alphaBackground = ALPHA_BACKGROUND;
+int alphaElements = ALPHA_ELEMENTS;
+int timerPrintStatusLine = TIMER_PRINT_STATUS_LINE;
+int timerAddNewRing = TIMER_ADD_NEW_RING;
 
 /*
  * Convert a color mode enum to a string
@@ -215,15 +244,15 @@ void *safeMalloc(size_t size, const char *msg) {
  * Generate random values for an existing particle.
  */
 void randomizeParticle(Particle *p) {
-	int speed = rand() % PARTICLE_SPEED_MAXIMUM;
-	unsigned int radius = PARTICLE_RADIUS_MINIMUM +
-	    (rand() % (PARTICLE_RADIUS_MAXIMUM - PARTICLE_RADIUS_MINIMUM));
-	unsigned int height = PARTICLE_HEIGHT_MINIMUM +
-	    (rand() % (PARTICLE_HEIGHT_MAXIMUM - PARTICLE_HEIGHT_MINIMUM));
-	unsigned int lineDistance = PARTICLE_LINE_DISTANCE_MINIMUM +
-	    (rand() % (PARTICLE_LINE_DISTANCE_MAXIMUM - PARTICLE_LINE_DISTANCE_MINIMUM));
+	int speed = rand() % particleSpeedMaximum;
+	unsigned int radius = particleRadiusMinimum +
+	    (rand() % (particleRadiusMaximum - particleRadiusMinimum));
+	unsigned int height = particleHeightMinimum +
+	    (rand() % (particleHeightMaximum - particleHeightMinimum));
+	unsigned int lineDistance = particleLineDistanceMinimum +
+	    (rand() % (particleLineDistanceMaximum - particleLineDistanceMinimum));
 	unsigned int color = rand() % MAX_COLORS;
-	int bornTimer = rand() % PARTICLE_BORN_TIMER_MAXIMUM;
+	int bornTimer = rand() % particleBornTimerMaximum;
 	float position = rand() % 360;
 
 	assert(p != NULL);
@@ -287,7 +316,8 @@ ParticleNode *makeOrReclaimRandomizedParticleNode() {
  * Adds a new ring to the global rings linked list head.
  */
 void addRing() {
-	RingNode *ringNode = safeMalloc(sizeof (RingNode), "addRing malloc RingNode");
+	RingNode *ringNode = safeMalloc(sizeof (RingNode),
+	    "addRing malloc RingNode");
 
 	ringNode->particleNode = NULL;
 	ringNode->next = rings;
@@ -368,8 +398,8 @@ void DrawCircle(float cx, float cy, float r) {
  * Draw a particle on the window
  */
 void DrawParticle(Particle *particle) {
-	float x = (WINDOW_WIDTH / 2) + particle->x;
-	float y = (WINDOW_HEIGHT / 2) + particle->y;
+	float x = (windowWidth / 2) + particle->x;
+	float y = (windowHeight / 2) + particle->y;
 
 	DrawCircle(x, y, particle->radius);
 }
@@ -378,10 +408,10 @@ void DrawParticle(Particle *particle) {
  * Draw a line between 2 particles
  */
 void DrawLinesConnectingParticles(Particle *p1, Particle *p2) {
-	float x1 = (WINDOW_WIDTH / 2) + p1->x;
-	float y1 = (WINDOW_HEIGHT / 2) + p1->y;
-	float x2 = (WINDOW_WIDTH / 2) + p2->x;
-	float y2 = (WINDOW_HEIGHT / 2) + p2->y;
+	float x1 = (windowWidth / 2) + p1->x;
+	float y1 = (windowHeight / 2) + p1->y;
+	float x2 = (windowWidth / 2) + p2->x;
+	float y2 = (windowHeight / 2) + p2->y;
 
 	glBegin(GL_LINES);
 	glVertex2f(x1, y1);
@@ -403,11 +433,13 @@ void randomizeMagic(float magic[8][3]) {
 /*
  * Set the glColor to the given rainbow index
  */
-void setColor(unsigned int idx, const float magic[8][3], float alpha) {
+void setColor(unsigned int idx, const float magic[8][3], int alpha) {
 	idx = idx % MAX_COLORS;
 	RGB rgb = rainbow(idx);
 	rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, magic);
-	glColor4f(rgb.r, rgb.g, rgb.b, alpha);
+	float alphaF = fadingMode ? ((float)alpha / 100.0) : 1.00;;
+
+	glColor4f(rgb.r, rgb.g, rgb.b, alphaF);
 }
 
 /*
@@ -420,24 +452,24 @@ void usage(FILE *s) {
 	fprintf(s, "- press 'f' to toggle fade\n");
 	fprintf(s, "- press 'm' to toggle color modes\n");
 	fprintf(s, "\n");
-	fprintf(s, "WINDOW_WIDTH=%d\n", WINDOW_WIDTH);
-	fprintf(s, "WINDOW_HEIGHT=%d\n", WINDOW_HEIGHT);
-	fprintf(s, "PARTICLE_SPEED_MAXIMUM=%d\n", PARTICLE_SPEED_MAXIMUM);
-	fprintf(s, "PARTICLE_RADIUS_MINIMUM=%d\n", PARTICLE_RADIUS_MINIMUM);
-	fprintf(s, "PARTICLE_RADIUS_MAXIMUM=%d\n", PARTICLE_RADIUS_MAXIMUM);
-	fprintf(s, "PARTICLE_HEIGHT_MINIMUM=%d\n", PARTICLE_HEIGHT_MINIMUM);
-	fprintf(s, "PARTICLE_HEIGHT_MAXIMUM=%d\n", PARTICLE_HEIGHT_MAXIMUM);
-	fprintf(s, "PARTICLE_LINE_DISTANCE_MINIMUM=%d\n",
-	    PARTICLE_LINE_DISTANCE_MINIMUM);
-	fprintf(s, "PARTICLE_LINE_DISTANCE_MAXIMUM=%d\n",
-	    PARTICLE_LINE_DISTANCE_MAXIMUM);
-	fprintf(s, "PARTICLE_EXPAND_RATE=%d\n", PARTICLE_EXPAND_RATE);
-	fprintf(s, "PARTICLE_BORN_TIMER_MAXIMUM=%d\n",
-	    PARTICLE_BORN_TIMER_MAXIMUM);
-	fprintf(s, "PARTICLE_COLOR_SPEED=%d\n", PARTICLE_COLOR_SPEED);
-	fprintf(s, "RINGS_MAXIMUM=%d\n", RINGS_MAXIMUM);
-	fprintf(s, "ALPHA_BACKGROUND=%f\n", ALPHA_BACKGROUND);
-	fprintf(s, "ALPHA_ELEMENTS=%f\n", ALPHA_ELEMENTS);
+	fprintf(s, "windowWidth=%d\n", windowWidth);
+	fprintf(s, "windowHeight=%d\n", windowHeight);
+	fprintf(s, "particleSpeedMaximum=%d\n", particleSpeedMaximum);
+	fprintf(s, "particleRadiusMinimum=%d\n", particleRadiusMinimum);
+	fprintf(s, "particleRadiusMaximum=%d\n", particleRadiusMaximum);
+	fprintf(s, "particleHeightMinimum=%d\n", particleHeightMinimum);
+	fprintf(s, "particleHeightMaximum=%d\n", particleHeightMaximum);
+	fprintf(s, "particleLineDistanceMinimum=%d\n",
+	    particleLineDistanceMinimum);
+	fprintf(s, "particleLineDistanceMaximum=%d\n",
+	    particleLineDistanceMaximum);
+	fprintf(s, "particleExpandRate=%d\n", particleExpandRate);
+	fprintf(s, "particleBornTimerMaximum=%d\n",
+	    particleBornTimerMaximum);
+	fprintf(s, "particleColorSpeed=%d\n", particleColorSpeed);
+	fprintf(s, "ringsMaximum=%d\n", ringsMaximum);
+	fprintf(s, "alphaBackground=%d\n", alphaBackground);
+	fprintf(s, "alphaElements=%d\n", alphaElements);
 }
 
 /*
@@ -462,14 +494,14 @@ int main(int argc, char **argv) {
 	SDL_GL_SetSwapInterval(1);
 
 	SDL_Window *Window = SDL_CreateWindow("Undercurrents", 0, 0,
-	    WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
+	    windowWidth, windowHeight, SDL_WINDOW_OPENGL);
 	assert(Window);
 	SDL_GLContext Context = SDL_GL_CreateContext(Window);
 	assert(Context);
 
 	glMatrixMode(GL_PROJECTION);
-	glOrtho(0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, -1, 1);
-	glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+	glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
+	glViewport(0, 0, windowWidth, windowHeight);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -477,8 +509,6 @@ int main(int argc, char **argv) {
 	srand(time(NULL));
 
 	bool running = true;
-	float alphaBackground = ALPHA_BACKGROUND;
-	float alphaElements = ALPHA_ELEMENTS;
 	float rainbowIdx = 0;
 	float randomMagic[8][3];
 	int currentColorMode = ColorModeSolid;
@@ -486,9 +516,7 @@ int main(int argc, char **argv) {
 	int addNewRingCounter = 0;
 	unsigned int currentTime;
 	unsigned int delta;
-	unsigned int expandRate = PARTICLE_EXPAND_RATE;
 	unsigned int lastTime = 0;
-	unsigned int maxRings = RINGS_MAXIMUM;
 
 	usage(stdout);
 	printf("\n");
@@ -516,33 +544,30 @@ int main(int argc, char **argv) {
 					running = false;
 					break;
 				case SDLK_UP:
-					expandRate++;
-					printf("expandRate=%u\n", expandRate);
+					particleExpandRate++;
+					printf("particleExpandRate=%u\n", particleExpandRate);
 					break;
 				case SDLK_DOWN:
-					if (expandRate > 0) {
-						expandRate--;
+					if (particleExpandRate > 0) {
+						particleExpandRate--;
 					}
-					printf("expandRate=%u\n", expandRate);
+					printf("particleExpandRate=%u\n", particleExpandRate);
 					break;
 				case SDLK_LEFT:
-					if (maxRings > 0) {
-						maxRings--;
+					if (ringsMaximum > 0) {
+						ringsMaximum--;
 					}
-					printf("maxRings=%u\n", maxRings);
+					printf("ringsMaximum=%u\n", ringsMaximum);
 					break;
 				case SDLK_RIGHT:
-					maxRings++;
-					printf("maxRings=%u\n", maxRings);
+					ringsMaximum++;
+					printf("ringsMaximum=%u\n", ringsMaximum);
 					break;
 				case SDLK_f:
-					if (alphaElements == 1.0) {
-						alphaElements = ALPHA_ELEMENTS;
-						alphaBackground = ALPHA_BACKGROUND;
+					fadingMode = !fadingMode;
+					if (fadingMode) {
 						printf("fading enabled\n");
 					} else {
-						alphaElements = 1.0;
-						alphaBackground = 1.0;
 						printf("fading disabled\n");
 					}
 					break;
@@ -566,7 +591,7 @@ int main(int argc, char **argv) {
 		// process timing stats
 		printStatusLineCounter -= delta;
 		if (printStatusLineCounter <= 0) {
-			printStatusLineCounter += TIMER_PRINT_STATUS_LINE;
+			printStatusLineCounter += timerPrintStatusLine;
 
 			printf("fps=%f ringCount=%u particleCount=%u "
 			    "recycledParticles=%u\n",
@@ -576,7 +601,7 @@ int main(int argc, char **argv) {
 			int i = 0;
 			while (printStatusLineCounter <= 0) {
 				i++;
-				printStatusLineCounter += TIMER_PRINT_STATUS_LINE;
+				printStatusLineCounter += timerPrintStatusLine;
 			}
 			if (i > 0) {
 				printf("[warn] missed %d status line calls\n", i);
@@ -587,13 +612,13 @@ int main(int argc, char **argv) {
 
 		addNewRingCounter -= delta;
 		if (addNewRingCounter <= 0) {
-			addNewRingCounter += TIMER_ADD_NEW_RING;
+			addNewRingCounter += timerAddNewRing;
 
 			// add a new ring
 			addRing();
 
 			// recycle out-of-view rings
-			while (ringCount > maxRings) {
+			while (ringCount > ringsMaximum) {
 				recycleLastRing();
 				ringCount--;
 			}
@@ -610,7 +635,7 @@ int main(int argc, char **argv) {
 					if (head != NULL) {
 						assert(head->particle);
 						// TODO fix this height bs
-						int variance = PARTICLE_HEIGHT_MAXIMUM - PARTICLE_HEIGHT_MINIMUM;
+						int variance = particleHeightMaximum - particleHeightMinimum;
 						new->particle->height = head->particle->height + (rand() % variance);
 					}
 
@@ -622,7 +647,7 @@ int main(int argc, char **argv) {
 			int i = 0;
 			while (addNewRingCounter <= 0) {
 				i++;
-				addNewRingCounter += TIMER_ADD_NEW_RING;
+				addNewRingCounter += timerAddNewRing;
 			}
 			if (i > 0) {
 				printf("[warn] missed %d add ring calls\n", i);
@@ -630,7 +655,7 @@ int main(int argc, char **argv) {
 		}
 
 		// Update rainbow index
-		rainbowIdx += (float)delta / 1000.0 * PARTICLE_COLOR_SPEED;
+		rainbowIdx += (float)delta / 1000.0 * particleColorSpeed;
 		while (rainbowIdx > MAX_COLORS) { rainbowIdx -= MAX_COLORS; }
 		while (rainbowIdx <= 0) { rainbowIdx += MAX_COLORS; }
 
@@ -644,7 +669,7 @@ int main(int argc, char **argv) {
 				Particle *p = particlePtr->particle;
 
 				// update particle location
-				p->height += (float)delta * (float)expandRate / 1000.0;
+				p->height += (float)delta * (float)particleExpandRate / 1000.0;
 				p->position += (float)p->speed / (float)delta;
 				particleCalculateCoordinates(p);
 
@@ -660,8 +685,9 @@ int main(int argc, char **argv) {
 		}
 
 		// clear screen
-		glColor4f(0.0f, 0.0f, 0.0f, alphaBackground);
-		glRecti(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+		float alpha = fadingMode ? ((float)alphaBackground / 100.0) : 1.0;
+		glColor4f(0.0f, 0.0f, 0.0f, alpha);
+		glRecti(0, 0, windowWidth, windowHeight);
 
 		if (currentColorMode == ColorModeSolid) {
 			setColor(rainbowIdx, randomMagic, alphaElements);
@@ -674,7 +700,7 @@ int main(int argc, char **argv) {
 
 			// set color here if ringed mode
 			if (currentColorMode == ColorModeRinged) {
-				unsigned int idx = rainbowIdx + (i * MAX_COLORS / RINGS_MAXIMUM);
+				unsigned int idx = rainbowIdx + (i * MAX_COLORS / ringsMaximum);
 				setColor(idx, randomMagic, alphaElements);
 			}
 
@@ -701,7 +727,7 @@ int main(int argc, char **argv) {
 
 				// draw connected lines to any particles NEXT
 				// in the ring/orbit
-				ParticleNode *particlePtr2 = particlePtr->next;;
+				ParticleNode *particlePtr2 = particlePtr->next;
 				for (; particlePtr2 != NULL; particlePtr2 = particlePtr2->next) {
 					Particle *p2 = particlePtr2->particle;
 
@@ -709,8 +735,8 @@ int main(int argc, char **argv) {
 						continue;
 					}
 
-					float yd = (WINDOW_HEIGHT / 2 + p2->y) - (WINDOW_HEIGHT / 2 + p->y);
-					float xd = (WINDOW_WIDTH / 2 + p2->x) - (WINDOW_HEIGHT / 2 + p->x);
+					float yd = (windowWidth / 2 + p2->y) - (windowHeight / 2 + p->y);
+					float xd = (windowWidth / 2 + p2->x) - (windowHeight / 2 + p->x);
 
 					// distance between 2 particles
 					float d = sqrt((xd * xd) + (yd * yd));
