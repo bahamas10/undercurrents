@@ -26,7 +26,7 @@ Particle *particleCreate() {
 /*
  * Initialize Particle
  */
-void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
+void particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
     int height, int speed, unsigned int lineDistance, float position, unsigned
     int color) {
 
@@ -46,9 +46,9 @@ void *particleInit(Particle *p, int bornTimer, unsigned int radius, unsigned
 /*
  * Print a particle object
  */
-void *particlePrint(Particle *p) {
-	printf("<Particle bornTimer=%d position=%f height=%f x=%f y=%f \
-	    radius=%u lineDistance=%u speed=%d color=%u>\n",
+void particlePrint(Particle *p) {
+	printf("<Particle bornTimer=%d position=%f height=%f x=%d y=%d "
+	    "radius=%u lineDistance=%u speed=%d color=%u>\n",
 	    p->bornTimer, p->position, p->height, p->x, p->y, p->radius,
 	    p->lineDistance, p->speed, p->color);
 }
@@ -71,6 +71,6 @@ void particleCalculateCoordinates(Particle *p) {
 /*
  * Free a particle object
  */
-void *particleDestroy(Particle *p) {
+void particleDestroy(Particle *p) {
 	free(p);
 }

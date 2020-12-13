@@ -1,5 +1,5 @@
 CC := cc
-CFLAGS := `sdl2-config --libs --cflags` -lGL -lm
+CFLAGS := `sdl2-config --libs --cflags` -lGL -lm -Wall -Werror -O2
 
 undercurrents: src/undercurrents.c src/ryb2rgb.o src/particle.o
 	$(CC) -o $@ $(CFLAGS) $^
@@ -13,3 +13,7 @@ src/particle.o: src/particle.c src/particle.h
 .PHONY: clean
 clean:
 	rm -f undercurrents src/*.o
+
+.PHONY: defines
+defines:
+	awk '/^#define/ { printf("printf(\"%s=%%d\\n\", %s);\n", $$2, $$2); }' src/undercurrents.c

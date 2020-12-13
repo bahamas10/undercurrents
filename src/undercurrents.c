@@ -1,4 +1,8 @@
 /*
+ * Undercurrents
+ *
+ * A fun visualizer using C and OpenGL
+ *
  * Author: Dave Eddy <dave@daveeddy.com>
  * Date: December 12, 2020
  * License: MIT
@@ -11,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <GL/gl.h>
 #include <SDL2/SDL.h>
@@ -19,22 +24,79 @@
 #include "particle.h"
 #include "ryb2rgb.h"
 
+// Configuration
+
+// Window width and height
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 1200
 
-#define SPEED_MAXIMUM 25
-#define RADIUS_MINIMUM 1
-#define RADIUS_VARIANCE 5
-#define HEIGHT_MINIMUM 5
-#define HEIGHT_VARIANCE 5
-#define LINE_DISTANCE_MINIMUM 0
-#define LINE_DISTANCE_VARIANCE 200
-#define EXPAND_RATE 0.020
+/*
+ * Maximum particle circular speed.  Each particle will have a speed between
+ * 0 through PARTICLE_SPEED_MAXIMUM inclusive.
+ */
+#define PARTICLE_SPEED_MAXIMUM 25
+
+/*
+ * Particle radius (dot when drawn).  Each particle will have a radius between
+ * PARTICLE_RADIUS_MINIMUM through PARTICLE_RADIUS_MAXIMUM inclusive.
+ */
+#define PARTICLE_RADIUS_MINIMUM 1
+#define PARTICLE_RADIUS_MAXIMUM 5
+
+/*
+ * Particle height (distance from center mass).  Each particle will have a
+ * height between PARTICLE_HEIGHT_MINIMUM through PARTICLE_HEIGHT_MAXIMUM
+ * inclusive.  This value will grow by a factor of PARTICLE_EXPAND_RATE over
+ * time.
+ */
+#define PARTICLE_HEIGHT_MINIMUM 0
+#define PARTICLE_HEIGHT_MAXIMUM 5
+
+/*
+ * Particle line distance.  Each particle has a "distance" that it will use to
+ * check against every other particle in its ring/orbit.  Any other particle
+ * found within that distance will have a line drawn between them.  Said
+ * differently, as particles pass close by each other they will connect with a
+ * line while in range.  The range is from PARTICLE_LINE_DISTANCE_MINIMUM
+ * through PARTICLE_LINE_DISTANCE_MAXIMUM.
+ */
+#define PARTICLE_LINE_DISTANCE_MINIMUM 0
+#define PARTICLE_LINE_DISTANCE_MAXIMUM 200
+
+/*
+ * How quickly the particles expand outward from the center.
+ */
+#define PARTICLE_EXPAND_RATE 20
+
+/*
+ * How long it takes for a particle to become active (in milliseconds).  When a
+ * particle is * created, this value will be set randomly between 0 and
+ * PARTICLE_BORN_TIMER_MAXIMUM.  This value will be decremented by the amout of
+ * milliseconds that have elapsed every iteration of the game loop, and once it
+ * hits 0, will result in the particle being displayed.
+ *
+ * This value makes it so multiple particles can be added at the same time
+ * without them all just suddenly popping into existence.
+ */
+#define PARTICLE_BORN_TIMER_MAXIMUM 1000
+
+/*
+ * How quickly the colors cycle.
+ */
+#define PARTICLE_COLOR_SPEED 50
+
+/*
+ * The maximum number of rings to create.  Any new rings will result in the
+ * last ring being recycled.
+ */
 #define RINGS_MAXIMUM 34
+
+/*
+ * The alpha value to use (when fading is enabled) when clearing the screen
+ * (ALPHA_BACKGROUND) and when drawing the particles or lines (ALPHA_ELEMENTS).
+ */
 #define ALPHA_BACKGROUND 0.032
 #define ALPHA_ELEMENTS 0.10
-#define PARTICLE_BORN_TIMER_MAXIMUM 1000
-#define COLOR_SPEED 50
 
 /*
  * Color modes
@@ -62,14 +124,27 @@ typedef struct RingNode {
 	struct RingNode *next;
 } RingNode;
 
+// Linked list of existing rings
 RingNode *rings = NULL;
+
+// How many rings are currently active
 unsigned int ringCount = 0;
+
+// How many particles are currently allocated
 unsigned int particleCount = 0;
+
+// How many particles are currently on the free list
 unsigned int recycledParticles = 0;
+
+// The free particle list
 ParticleNode *freeParticleNodes = NULL;
 
-// adapted from
-// https://community.khronos.org/t/how-does-one-create-animated-rgb-rainbow-effect-on-objects-lines-quads-triangles/76562/13
+/*
+ * Generate an RGB color from a given index.
+ *
+ * adapted from
+ * https://community.khronos.org/t/how-does-one-create-animated-rgb-rainbow-effect-on-objects-lines-quads-triangles/76562/13
+ */
 #define MAX_COLORS (256 * 6)
 RGB rainbow(unsigned int idx) {
 	assert(idx >= 0);
@@ -111,44 +186,57 @@ void *safeMalloc(size_t size, const char *msg) {
 	return ptr;
 }
 
+/*
+ * Generate random values for an existing particle.
+ */
 void randomizeParticle(Particle *p) {
-	int speed = (rand() % (SPEED_MAXIMUM * 2)) - SPEED_MAXIMUM;
-	unsigned int radius = RADIUS_MINIMUM + (rand() % RADIUS_VARIANCE);
-	unsigned int height = HEIGHT_MINIMUM + (rand() % HEIGHT_VARIANCE);
-	unsigned int lineDistance = LINE_DISTANCE_MINIMUM + (rand() % LINE_DISTANCE_VARIANCE);
+	int speed = rand() % PARTICLE_SPEED_MAXIMUM;
+	unsigned int radius = PARTICLE_RADIUS_MINIMUM +
+	    (rand() % (PARTICLE_RADIUS_MAXIMUM - PARTICLE_RADIUS_MINIMUM));
+	unsigned int height = PARTICLE_HEIGHT_MINIMUM +
+	    (rand() % (PARTICLE_HEIGHT_MAXIMUM - PARTICLE_HEIGHT_MINIMUM));
+	unsigned int lineDistance = PARTICLE_LINE_DISTANCE_MINIMUM +
+	    (rand() % (PARTICLE_LINE_DISTANCE_MAXIMUM - PARTICLE_LINE_DISTANCE_MINIMUM));
 	unsigned int color = rand() % MAX_COLORS;
 	int bornTimer = rand() % PARTICLE_BORN_TIMER_MAXIMUM;
 	float position = rand() % 360;
 
 	assert(p != NULL);
 
+	// 50% chance the particle moves backwards (negative speed)
 	if (rand() % 2) {
 		speed *= -1;
 	}
 
-	particleInit(p, bornTimer, radius, height, speed, lineDistance, position, color);
+	particleInit(p, bornTimer, radius, height, speed, lineDistance,
+	    position, color);
 }
 
+/*
+ * Wrapper for creating a particle.  This has the benefit of failing if the
+ * particle fails to be created.
+ */
 Particle *createParticle() {
 	Particle *p = particleCreate();
-	assert(p != NULL);
+	if (p == NULL) {
+		err(2, "createParticle");
+	}
 	particleCount++;
 	return p;
 }
 
-Particle *makeRandomizedParticle() {
-	Particle *p = createParticle();
-	randomizeParticle(p);
-
-	return p;
-}
-
-/* Particle wrappers */
+/*
+ * Convenience function for getting a ParticleNode with an attached Particle
+ * object.  This function will retreive an existing one from the recycled free
+ * list, or malloc a new one if one isn't available.
+ */
 ParticleNode *makeOrReclaimRandomizedParticleNode() {
 	ParticleNode *particleNode;
 	Particle *p;
 
 	if (freeParticleNodes == NULL) {
+		assert(recycledParticles == 0);
+
 		// allocate a new particle and particleNode
 		particleNode = safeMalloc(sizeof (ParticleNode),
 		    "makeOrReclaimParticleNode malloc ParticleNode");
@@ -170,7 +258,9 @@ ParticleNode *makeOrReclaimRandomizedParticleNode() {
 	return particleNode;
 }
 
-// add a ring with a single particle
+/*
+ * Adds a new ring to the global rings linked list head.
+ */
 void addRing() {
 	RingNode *ringNode = safeMalloc(sizeof (RingNode), "addRing malloc RingNode");
 
@@ -181,11 +271,16 @@ void addRing() {
 	ringCount++;
 }
 
+/*
+ * Remove the last ring from the rings linked list tail.
+ */
 void recycleLastRing() {
 	RingNode *ringPtr = rings;
 
 	// fast forward ringPtr to second last item
-	while (ringPtr != NULL && ringPtr->next != NULL && ringPtr->next->next != NULL) {
+	while (ringPtr != NULL && ringPtr->next != NULL &&
+	    ringPtr->next->next != NULL) {
+
 		ringPtr = ringPtr->next;
 	}
 
@@ -200,7 +295,7 @@ void recycleLastRing() {
 	// truncate the list
 	ringPtr->next = NULL;
 
-	// loop particles in ring
+	// loop particles in ring and append them to the freed list
 	ParticleNode *cur = last->particleNode;
 	while (cur != NULL) {
 		ParticleNode *next = cur->next;
@@ -217,12 +312,13 @@ void recycleLastRing() {
 }
 
 /*
- * Taken from
- * http://slabode.exofire.net/circle_draw.shtml
+ * Draw a circle at the given x and y coordinates with a radius r.
+ *
+ * Taken from http://slabode.exofire.net/circle_draw.shtml
  */
 void DrawCircle(float cx, float cy, float r) {
 	int num_segments = 10 * sqrtf(r);
-	float theta = 2 * 3.1415926 / num_segments;
+	float theta = 2 * M_PI / num_segments;
 	float c = cosf(theta);//precalculate the sine and cosine
 	float s = sinf(theta);
 	float t;
@@ -232,8 +328,7 @@ void DrawCircle(float cx, float cy, float r) {
 
 	//glBegin(GL_LINE_LOOP);
 	glBegin(GL_POLYGON);
-	for (int ii = 0; ii < num_segments; ii++)
-	{
+	for (int ii = 0; ii < num_segments; ii++) {
 		glVertex2f(x + cx, y + cy);//output vertex
 
 		//apply the rotation matrix
@@ -244,6 +339,9 @@ void DrawCircle(float cx, float cy, float r) {
 	glEnd();
 }
 
+/*
+ * Draw a particle on the window
+ */
 void DrawParticle(Particle *particle) {
 	float x = (WINDOW_WIDTH / 2) + particle->x;
 	float y = (WINDOW_HEIGHT / 2) + particle->y;
@@ -251,6 +349,9 @@ void DrawParticle(Particle *particle) {
 	DrawCircle(x, y, particle->radius);
 }
 
+/*
+ * Draw a line between 2 particles
+ */
 void DrawLinesConnectingParticles(Particle *p1, Particle *p2) {
 	float x1 = (WINDOW_WIDTH / 2) + p1->x;
 	float y1 = (WINDOW_HEIGHT / 2) + p1->y;
@@ -263,6 +364,9 @@ void DrawLinesConnectingParticles(Particle *p1, Particle *p2) {
 	glEnd();
 }
 
+/*
+ * Generate random values for a magic color array (used by ryb2rgb)
+ */
 void randomizeMagic(float magic[8][3]) {
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 3; j++) {
@@ -271,18 +375,69 @@ void randomizeMagic(float magic[8][3]) {
 	}
 }
 
-void setColor(unsigned int idx, float magic[8][3], float alpha) {
+/*
+ * Set the glColor to the given rainbow index
+ */
+void setColor(unsigned int idx, const float magic[8][3], float alpha) {
 	idx = idx % MAX_COLORS;
 	RGB rgb = rainbow(idx);
 	rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, magic);
 	glColor4f(rgb.r, rgb.g, rgb.b, alpha);
 }
 
+/*
+ * Print the usage message to the given FILE stream
+ */
+void usage(FILE *s) {
+	fprintf(s, "- press up / down to modify expansion rate\n");
+	fprintf(s, "- press left / right to modify max rings\n");
+	fprintf(s, "- press 'r' to randomize colors\n");
+	fprintf(s, "- press 'f' to toggle fade\n");
+	fprintf(s, "- press 'm' to toggle color modes\n");
+	fprintf(s, "\n");
+	fprintf(s, "WINDOW_WIDTH=%d\n", WINDOW_WIDTH);
+	fprintf(s, "WINDOW_HEIGHT=%d\n", WINDOW_HEIGHT);
+	fprintf(s, "PARTICLE_SPEED_MAXIMUM=%d\n", PARTICLE_SPEED_MAXIMUM);
+	fprintf(s, "PARTICLE_RADIUS_MINIMUM=%d\n", PARTICLE_RADIUS_MINIMUM);
+	fprintf(s, "PARTICLE_RADIUS_MAXIMUM=%d\n", PARTICLE_RADIUS_MAXIMUM);
+	fprintf(s, "PARTICLE_HEIGHT_MINIMUM=%d\n", PARTICLE_HEIGHT_MINIMUM);
+	fprintf(s, "PARTICLE_HEIGHT_MAXIMUM=%d\n", PARTICLE_HEIGHT_MAXIMUM);
+	fprintf(s, "PARTICLE_LINE_DISTANCE_MINIMUM=%d\n",
+	    PARTICLE_LINE_DISTANCE_MINIMUM);
+	fprintf(s, "PARTICLE_LINE_DISTANCE_MAXIMUM=%d\n",
+	    PARTICLE_LINE_DISTANCE_MAXIMUM);
+	fprintf(s, "PARTICLE_EXPAND_RATE=%d\n", PARTICLE_EXPAND_RATE);
+	fprintf(s, "PARTICLE_BORN_TIMER_MAXIMUM=%d\n",
+	    PARTICLE_BORN_TIMER_MAXIMUM);
+	fprintf(s, "PARTICLE_COLOR_SPEED=%d\n", PARTICLE_COLOR_SPEED);
+	fprintf(s, "RINGS_MAXIMUM=%d\n", RINGS_MAXIMUM);
+	fprintf(s, "ALPHA_BACKGROUND=%f\n", ALPHA_BACKGROUND);
+	fprintf(s, "ALPHA_ELEMENTS=%f\n", ALPHA_ELEMENTS);
+}
+
+/*
+ * Main method!
+ */
 int main(int argc, char **argv) {
+	int opt;
+	while ((opt = getopt(argc, argv, "h")) != -1) {
+		switch (opt) {
+		case 'h':
+			usage(stdout);
+			return (0);
+		default:
+			usage(stderr);
+			return (1);
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetSwapInterval(1);
 
-	SDL_Window *Window = SDL_CreateWindow("Undercurrents", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
+	SDL_Window *Window = SDL_CreateWindow("Undercurrents", 0, 0,
+	    WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
 	assert(Window);
 	SDL_GLContext Context = SDL_GL_CreateContext(Window);
 	assert(Context);
@@ -296,30 +451,24 @@ int main(int argc, char **argv) {
 
 	srand(time(NULL));
 
-	RGB rgb;
 	bool running = true;
 	float alphaBackground = ALPHA_BACKGROUND;
 	float alphaElements = ALPHA_ELEMENTS;
-	float expandRate = EXPAND_RATE;
 	float rainbowIdx = 0;
 	float randomMagic[8][3];
 	int currentColorMode = ColorModeSolid;
 	int fpsCounter = 0;
-	int magicCounter = 0;
-	int rainbowCounter = 0;
+	int ringCounter = 0;
 	unsigned int currentTime;
 	unsigned int delta;
+	unsigned int expandRate = PARTICLE_EXPAND_RATE;
 	unsigned int lastTime = 0;
 	unsigned int maxRings = RINGS_MAXIMUM;
 
-	randomizeMagic(randomMagic);
-
-	printf("- press up / down to modify expansion rate\n");
-	printf("- press left / right to modify max rings\n");
-	printf("- press 'r' to randomize colors\n");
-	printf("- press 'f' to toggle fade\n");
-	printf("- press 'm' to toggle color modes\n");
+	usage(stdout);
 	printf("\n");
+
+	randomizeMagic(randomMagic);
 
 	// main loop
 	while (running) {
@@ -342,33 +491,35 @@ int main(int argc, char **argv) {
 					running = false;
 					break;
 				case SDLK_UP:
-					expandRate += 0.001;
--                                       printf("expandRate = %f\n", expandRate);
+					expandRate++;
+					printf("expandRate=%u\n", expandRate);
 					break;
 				case SDLK_DOWN:
-					expandRate -= 0.001;
--                                       printf("expandRate = %f\n", expandRate);
+					if (expandRate > 0) {
+						expandRate--;
+					}
+					printf("expandRate=%u\n", expandRate);
 					break;
 				case SDLK_LEFT:
 					if (maxRings > 0) {
 						maxRings--;
 					}
-					printf("maxRings = %u\n", maxRings);
+					printf("maxRings=%u\n", maxRings);
 					break;
 				case SDLK_RIGHT:
 					maxRings++;
-					printf("maxRings = %u\n", maxRings);
+					printf("maxRings=%u\n", maxRings);
 					break;
 				case SDLK_f:
 					if (alphaElements == 1.0) {
 						alphaElements = ALPHA_ELEMENTS;
 						alphaBackground = ALPHA_BACKGROUND;
+						printf("fading enabled\n");
 					} else {
 						alphaElements = 1.0;
 						alphaBackground = 1.0;
+						printf("fading disabled\n");
 					}
-					printf("alphaElemnts=%f alphaBackground=%f\n",
-					    alphaElements, alphaBackground);
 					break;
 				case SDLK_r:
 					randomizeMagic(randomMagic);
@@ -389,10 +540,19 @@ int main(int argc, char **argv) {
 		// process timing stats
 		fpsCounter -= delta;
 		if (fpsCounter <= 0) {
-			printf("fps=%f ringCount=%u particleCount=%u recycledParticles=%u\n",
-			    1000.0 / delta, ringCount, particleCount, recycledParticles);
+			while (fpsCounter <= 0) { fpsCounter += 2000; }
 
-			while (fpsCounter <= 0) { fpsCounter += 1000; }
+			printf("fps=%f ringCount=%u particleCount=%u "
+			    "recycledParticles=%u\n",
+			    1000.0 / delta, ringCount, particleCount,
+			    recycledParticles);
+		}
+
+
+
+		ringCounter -= delta;
+		if (ringCounter <= 0) {
+			while (ringCounter <= 0) { ringCounter += 1000; }
 
 			// add a new ring
 			addRing();
@@ -408,13 +568,6 @@ int main(int argc, char **argv) {
 			for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
 				int num = (i / 4) + 2;
 
-				/*
-				ParticleNode *head = ringPtr->particleNode;
-				int count = 0;
-				while (head != NULL) { head = head->next; count++; }
-				printf("ring %d has %d elements\n", i, count);
-				*/
-
 				for (int j = 0; j < num; j++) {
 					ParticleNode *head = ringPtr->particleNode;
 					ParticleNode *new = makeOrReclaimRandomizedParticleNode();
@@ -422,7 +575,8 @@ int main(int argc, char **argv) {
 					if (head != NULL) {
 						assert(head->particle);
 						// TODO fix this height bs
-						new->particle->height = head->particle->height + (rand() % HEIGHT_VARIANCE);
+						int variance = PARTICLE_HEIGHT_MAXIMUM - PARTICLE_HEIGHT_MINIMUM;
+						new->particle->height = head->particle->height + (rand() % variance);
 					}
 
 					new->next = head;
@@ -431,17 +585,8 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		magicCounter -= delta;
-		if (magicCounter <= 0) {
-			while (magicCounter <= 0) {
-				magicCounter += 5000;
-			}
-			// NOT USED currently
-			//randomizeMagic(randomMagic);
-		}
-
 		// Update rainbow index
-		rainbowIdx += (float)delta / 1000.0 * COLOR_SPEED;
+		rainbowIdx += (float)delta / 1000.0 * PARTICLE_COLOR_SPEED;
 		while (rainbowIdx > MAX_COLORS) { rainbowIdx -= MAX_COLORS; }
 		while (rainbowIdx <= 0) { rainbowIdx += MAX_COLORS; }
 
@@ -455,7 +600,7 @@ int main(int argc, char **argv) {
 				Particle *p = particlePtr->particle;
 
 				// update particle location
-				p->height += (float)delta * expandRate;
+				p->height += (float)delta * (float)expandRate / 1000.0;
 				p->position += (float)p->speed / (float)delta;
 				particleCalculateCoordinates(p);
 
