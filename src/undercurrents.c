@@ -140,6 +140,21 @@ unsigned int recycledParticles = 0;
 ParticleNode *freeParticleNodes = NULL;
 
 /*
+ * Convert a color mode enum to a string
+ */
+char *colorModeToString(enum ColorMode mode) {
+	char *s = NULL;
+	switch (mode) {
+	case ColorModeSolid:      return "ColorModeSolid";
+	case ColorModeRinged:     return "ColorModeRinged";
+	case ColorModeCircular:   return "ColorModeCircular";
+	case ColorModeIndividual: return "ColorModeIndividual";
+	default: assert(false);
+	}
+	return s;
+}
+
+/*
  * Generate an RGB color from a given index.
  *
  * adapted from
@@ -527,7 +542,8 @@ int main(int argc, char **argv) {
 					break;
 				case SDLK_m:
 					currentColorMode = (currentColorMode + 1) % 4;
-					printf("currentColorMode = %d\n", currentColorMode);
+					printf("currentColorMode = %s\n",
+					    colorModeToString(currentColorMode));
 				default:
 					break;
 				}
