@@ -771,8 +771,6 @@ int main(int argc, char **argv) {
 
 	// initalize SDL and OpenGL window
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_GL_SetSwapInterval(1);
-
 	SDL_Window *window = SDL_CreateWindow("Undercurrents", 0, 0,
 	    windowWidth, windowHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 	assert(window != NULL);
@@ -780,13 +778,22 @@ int main(int argc, char **argv) {
 	assert(context != NULL);
 
 	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
 	glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
 	glViewport(0, 0, windowWidth, windowHeight);
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	// clear screen initially
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	// clear both buffers initially
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	SDL_GL_SetSwapInterval(0);
+	SDL_GL_SwapWindow(window);
+	SDL_GL_SetSwapInterval(1);
+	glClear(GL_COLOR_BUFFER_BIT);
+
 	glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
 	glRecti(0, 0, windowWidth, windowHeight);
 
