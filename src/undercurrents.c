@@ -774,7 +774,7 @@ int main(int argc, char **argv) {
 				printStatusLineCounter += timerPrintStatusLine;
 			}
 			if (i > 0) {
-				printf("[warn] missed %d status line calls\n", i);
+				fprintf(stderr, "[warn] missed %d status line calls\n", i);
 			}
 		}
 
@@ -819,7 +819,7 @@ int main(int argc, char **argv) {
 				addNewRingCounter += timerAddNewRing;
 			}
 			if (i > 0) {
-				printf("[warn] missed %d add ring calls\n", i);
+				fprintf(stderr, "[warn] missed %d add ring calls\n", i);
 			}
 		}
 
