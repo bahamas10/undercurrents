@@ -236,6 +236,38 @@ int timerPrintStatusLine = TIMER_PRINT_STATUS_LINE;
 int timerAddNewRing = TIMER_ADD_NEW_RING;
 
 /*
+ * All of the above configuration options.  Adding an option here will make it
+ * show up automatically in `-h` and also be accepted as a '--' long option.
+ */
+struct ConfigurationParameter {
+	char *name;
+	int *value;
+};
+
+struct ConfigurationParameter config[] = {
+	{ "windowWidth", &windowWidth },
+	{ "windowHeight", &windowHeight },
+	{ "particleSpeedMaximum", &particleSpeedMaximum },
+	{ "particleSpeedRate", &particleSpeedRate },
+	{ "particleRadiusMinimum", &particleRadiusMinimum },
+	{ "particleRadiusMaximum", &particleRadiusMaximum },
+	{ "particleHeightMinimum", &particleHeightMinimum },
+	{ "particleHeightMaximum", &particleHeightMaximum },
+	{ "particleLineDistanceMinimum", &particleLineDistanceMinimum },
+	{ "particleLineDistanceMaximum", &particleLineDistanceMaximum },
+	{ "particleLineRingDisable", &particleLineRingDisable },
+	{ "particleExpandRate", &particleExpandRate },
+	{ "particleBornTimerMaximum", &particleBornTimerMaximum },
+	{ "particleColorSpeed", &particleColorSpeed },
+	{ "ringsMaximum", &ringsMaximum },
+	{ "alphaBackground", &alphaBackground },
+	{ "alphaElements", &alphaElements },
+	{ "timerPrintStatusLine", &timerPrintStatusLine },
+	{ "timerAddNewRing", &timerAddNewRing },
+	{ NULL, NULL }
+};
+
+/*
  * Convert a color mode enum to a string
  */
 char *colorModeToString(enum ColorMode mode) {
@@ -502,28 +534,12 @@ void setColor(unsigned int idx, const float magic[8][3], int alpha) {
  */
 void printConfiguration(FILE *s) {
 	fprintf(s, "Configuration\n");
-	fprintf(s, "  windowWidth=%d\n", windowWidth);
-	fprintf(s, "  windowHeight=%d\n", windowHeight);
-	fprintf(s, "  particleSpeedMaximum=%d\n", particleSpeedMaximum);
-	fprintf(s, "  particleSpeedRate=%d\n", particleSpeedRate);
-	fprintf(s, "  particleRadiusMinimum=%d\n", particleRadiusMinimum);
-	fprintf(s, "  particleRadiusMaximum=%d\n", particleRadiusMaximum);
-	fprintf(s, "  particleHeightMinimum=%d\n", particleHeightMinimum);
-	fprintf(s, "  particleHeightMaximum=%d\n", particleHeightMaximum);
-	fprintf(s, "  particleLineDistanceMinimum=%d\n",
-	    particleLineDistanceMinimum);
-	fprintf(s, "  particleLineDistanceMaximum=%d\n",
-	    particleLineDistanceMaximum);
-	fprintf(s, "  particleLineRingDisable=%d\n", particleLineRingDisable);
-	fprintf(s, "  particleExpandRate=%d\n", particleExpandRate);
-	fprintf(s, "  particleBornTimerMaximum=%d\n",
-	    particleBornTimerMaximum);
-	fprintf(s, "  particleColorSpeed=%d\n", particleColorSpeed);
-	fprintf(s, "  ringsMaximum=%d\n", ringsMaximum);
-	fprintf(s, "  alphaBackground=%d\n", alphaBackground);
-	fprintf(s, "  alphaElements=%d\n", alphaElements);
-	fprintf(s, "  timerPrintStatusLine=%d\n", timerPrintStatusLine);
-	fprintf(s, "  timerAddNewRing=%d\n", timerAddNewRing);
+	struct ConfigurationParameter *ptr = config;
+	while (ptr->name != NULL) {
+		assert(ptr->value != NULL);
+		fprintf(s, "  %s=%d\n", ptr->name, *ptr->value);
+		ptr++;
+	}
 }
 
 /*
@@ -602,48 +618,24 @@ void parseArguments(char **argv) {
 				num = strtol(next, &end, 10);
 			}
 
+			// ensure the int parsed
 			if (next == NULL || next == end || errno != 0 || num < 0) {
 				fprintf(stderr, "failed to parse '%s'\n", next);
 				goto error;
 			}
 
-			if (strcmp(arg, "windowWidth") == 0) {
-				windowWidth = num;
-			} else if (strcmp(arg, "windowHeight") == 0) {
-				windowHeight = num;
-			} else if (strcmp(arg, "particleSpeedMaximum") == 0) {
-				particleSpeedMaximum = num;
-			} else if (strcmp(arg, "particleRadiusMinimum") == 0) {
-				particleRadiusMinimum = num;
-			} else if (strcmp(arg, "particleRadiusMaximum") == 0) {
-				particleRadiusMaximum = num;
-			} else if (strcmp(arg, "particleHeightMinimum") == 0) {
-				particleHeightMinimum = num;
-			} else if (strcmp(arg, "particleHeightMaximum") == 0) {
-				particleHeightMaximum = num;
-			} else if (strcmp(arg, "particleLineDistanceMinimum") == 0) {
-				particleLineDistanceMinimum = num;
-			} else if (strcmp(arg, "particleLineDistanceMaximum") == 0) {
-				particleLineDistanceMaximum = num;
-			} else if (strcmp(arg, "particleLineRingDisable") == 0) {
-				particleLineRingDisable = num;
-			} else if (strcmp(arg, "particleExpandRate") == 0) {
-				particleExpandRate = num;
-			} else if (strcmp(arg, "particleBornTimerMaximum") == 0) {
-				particleBornTimerMaximum = num;
-			} else if (strcmp(arg, "particleColorSpeed") == 0) {
-				particleColorSpeed = num;
-			} else if (strcmp(arg, "ringsMaximum") == 0) {
-				ringsMaximum = num;
-			} else if (strcmp(arg, "alphaBackground") == 0) {
-				alphaBackground = num;
-			} else if (strcmp(arg, "alphaElements") == 0) {
-				alphaElements = num;
-			} else if (strcmp(arg, "timerPrintStatusLine") == 0) {
-				timerPrintStatusLine = num;
-			} else if (strcmp(arg, "timerAddNewRing") == 0) {
-				timerAddNewRing = num;
-			} else {
+			// loop over all config options as long opts
+			struct ConfigurationParameter *ptr = config;
+			while (ptr->name != NULL) {
+				assert(ptr->value != NULL);
+				if (strcmp(arg, ptr->name) == 0) {
+					*(ptr->value) = num;
+					break;
+				}
+			}
+
+			// check if the option didn't match
+			if (ptr->name == NULL) {
 				goto error;
 			}
 
@@ -923,6 +915,7 @@ int main(int argc, char **argv) {
 			goto swap;
 		}
 
+		// set the color here just once if in solid mode
 		if (currentColorMode == ColorModeSolid) {
 			setColor(rainbowIdx, randomMagic, alphaElements);
 		}

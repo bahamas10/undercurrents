@@ -13,7 +13,3 @@ src/particle.o: src/particle.c src/particle.h
 .PHONY: clean
 clean:
 	rm -f undercurrents src/*.o
-
-.PHONY: defines
-defines:
-	awk '/^#define/ { printf("printf(\"%s=%%d\\n\", %s);\n", $$2, $$2); }' src/undercurrents.c
