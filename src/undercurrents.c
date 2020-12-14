@@ -157,6 +157,15 @@ ParticleNode *freeParticleNodes = NULL;
 // If fading mode is enabled or disabled
 bool fadingMode = true;
 
+// If the program is running
+bool running = false;
+
+// Magic colors (for use with ryb2rgb) randomized
+float randomMagic[8][3];
+
+// Current color mode
+int currentColorMode = ColorModeSolid;
+
 /*
  * All of the #defines above made available as global variables that can be
  * modified at runtime with CLI options.
@@ -542,8 +551,38 @@ void parseArguments(char **argv) {
 
 			if (strcmp(arg, "windowWidth") == 0) {
 				windowWidth = num;
-			 } else if (strcmp(arg, "windowHeight") == 0) {
+			} else if (strcmp(arg, "windowHeight") == 0) {
 				windowHeight = num;
+			} else if (strcmp(arg, "particleSpeedMaximum") == 0) {
+				particleSpeedMaximum = num;
+			} else if (strcmp(arg, "particleRadiusMinimum") == 0) {
+				particleRadiusMinimum = num;
+			} else if (strcmp(arg, "particleRadiusMaximum") == 0) {
+				particleRadiusMaximum = num;
+			} else if (strcmp(arg, "particleHeightMinimum") == 0) {
+				particleHeightMinimum = num;
+			} else if (strcmp(arg, "particleHeightMaximum") == 0) {
+				particleHeightMaximum = num;
+			} else if (strcmp(arg, "particleLineDistanceMinimum") == 0) {
+				particleLineDistanceMinimum = num;
+			} else if (strcmp(arg, "particleLineDistanceMaximum") == 0) {
+				particleLineDistanceMaximum = num;
+			} else if (strcmp(arg, "particleExpandRate") == 0) {
+				particleExpandRate = num;
+			} else if (strcmp(arg, "particleBornTimerMaximum") == 0) {
+				particleBornTimerMaximum = num;
+			} else if (strcmp(arg, "particleColorSpeed") == 0) {
+				particleColorSpeed = num;
+			} else if (strcmp(arg, "ringsMaximum") == 0) {
+				ringsMaximum = num;
+			} else if (strcmp(arg, "alphaBackground") == 0) {
+				alphaBackground = num;
+			} else if (strcmp(arg, "alphaElements") == 0) {
+				alphaElements = num;
+			} else if (strcmp(arg, "timerPrintStatusLine") == 0) {
+				timerPrintStatusLine = num;
+			} else if (strcmp(arg, "timerAddNewRing") == 0) {
+				timerAddNewRing = num;
 			} else {
 				goto error;
 			}
@@ -575,11 +614,81 @@ error:
 }
 
 /*
+ * Process SDL and keyboard events
+ */
+void processEvents() {
+	SDL_Event Event;
+	while (SDL_PollEvent(&Event)) {
+		switch (Event.type) {
+		case SDL_QUIT:
+			running = false;
+			break;
+		case SDL_KEYDOWN:
+			switch (Event.key.keysym.sym) {
+			case SDLK_ESCAPE:
+				running = false;
+				break;
+			case SDLK_UP:
+				particleExpandRate++;
+				printf("particleExpandRate=%u\n", particleExpandRate);
+				break;
+			case SDLK_DOWN:
+				if (particleExpandRate > 0) {
+					particleExpandRate--;
+				}
+				printf("particleExpandRate=%u\n", particleExpandRate);
+				break;
+			case SDLK_LEFT:
+				if (ringsMaximum > 0) {
+					ringsMaximum--;
+				}
+				printf("ringsMaximum=%u\n", ringsMaximum);
+				break;
+			case SDLK_RIGHT:
+				ringsMaximum++;
+				printf("ringsMaximum=%u\n", ringsMaximum);
+				break;
+			case SDLK_f:
+				fadingMode = !fadingMode;
+				if (fadingMode) {
+					printf("fading enabled\n");
+				} else {
+					printf("fading disabled\n");
+				}
+				break;
+			case SDLK_r:
+				randomizeMagic(randomMagic);
+				printf("randomized colors\n");
+				break;
+			case SDLK_m:
+				currentColorMode = (currentColorMode + 1) % 4;
+				printf("currentColorMode = %s\n",
+				    colorModeToString(currentColorMode));
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+/*
  * Main method!
  */
 int main(int argc, char **argv) {
+	float rainbowIdx = 0;
+	int printStatusLineCounter = 0;
+	int addNewRingCounter = 0;
+	unsigned int currentTime;
+	unsigned int delta;
+	unsigned int lastTime = 0;
+
+	// parse CLI options
 	parseArguments(argv);
 
+	// initalize SDL and OpenGL window
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetSwapInterval(1);
 
@@ -596,91 +705,33 @@ int main(int argc, char **argv) {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
+	// initialize random
 	srand(time(NULL));
 
-	bool running = true;
-	float rainbowIdx = 0;
-	float randomMagic[8][3];
-	int currentColorMode = ColorModeSolid;
-	int printStatusLineCounter = 0;
-	int addNewRingCounter = 0;
-	unsigned int currentTime;
-	unsigned int delta;
-	unsigned int lastTime = 0;
+	// initialize random colors
+	randomizeMagic(randomMagic);
 
+	// print config and controls
 	printConfiguration(stdout);
 	printf("\n");
 	printControls(stdout);
 	printf("\n");
 
-	randomizeMagic(randomMagic);
 
 	// main loop
+	running = true;
 	while (running) {
-		// calculate time
+		RingNode *ringPtr;
+
+		// calculate time since last iteration
 		currentTime = SDL_GetTicks();
 		delta = currentTime - lastTime;
 		lastTime = currentTime;
-		RingNode *ringPtr;
 
 		// process events
-		SDL_Event Event;
-		while (SDL_PollEvent(&Event)) {
-			switch (Event.type) {
-			case SDL_QUIT:
-				running = false;
-				break;
-			case SDL_KEYDOWN:
-				switch (Event.key.keysym.sym) {
-				case SDLK_ESCAPE:
-					running = false;
-					break;
-				case SDLK_UP:
-					particleExpandRate++;
-					printf("particleExpandRate=%u\n", particleExpandRate);
-					break;
-				case SDLK_DOWN:
-					if (particleExpandRate > 0) {
-						particleExpandRate--;
-					}
-					printf("particleExpandRate=%u\n", particleExpandRate);
-					break;
-				case SDLK_LEFT:
-					if (ringsMaximum > 0) {
-						ringsMaximum--;
-					}
-					printf("ringsMaximum=%u\n", ringsMaximum);
-					break;
-				case SDLK_RIGHT:
-					ringsMaximum++;
-					printf("ringsMaximum=%u\n", ringsMaximum);
-					break;
-				case SDLK_f:
-					fadingMode = !fadingMode;
-					if (fadingMode) {
-						printf("fading enabled\n");
-					} else {
-						printf("fading disabled\n");
-					}
-					break;
-				case SDLK_r:
-					randomizeMagic(randomMagic);
-					printf("randomized colors\n");
-					break;
-				case SDLK_m:
-					currentColorMode = (currentColorMode + 1) % 4;
-					printf("currentColorMode = %s\n",
-					    colorModeToString(currentColorMode));
-				default:
-					break;
-				}
-				break;
-			default:
-				break;
-			}
-		}
+		processEvents();
 
-		// process timing stats
+		// check if status line should be printed
 		printStatusLineCounter -= delta;
 		if (printStatusLineCounter <= 0) {
 			printStatusLineCounter += timerPrintStatusLine;
@@ -700,8 +751,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-
-
+		// check if new ring (and particles) should be created
 		addNewRingCounter -= delta;
 		if (addNewRingCounter <= 0) {
 			addNewRingCounter += timerAddNewRing;
