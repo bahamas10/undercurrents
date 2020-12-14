@@ -675,6 +675,19 @@ void processEvents() {
 		case SDL_QUIT:
 			running = false;
 			break;
+		case SDL_WINDOWEVENT:
+			switch (Event.window.event) {
+			case SDL_WINDOWEVENT_SIZE_CHANGED:
+				windowWidth = Event.window.data1;
+				windowHeight = Event.window.data2;
+				glLoadIdentity();
+				glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
+				glViewport(0, 0, windowWidth, windowHeight);
+				printf("window size changed to %dx%d\n",
+				    windowWidth, windowHeight);
+				break;
+			}
+			break;
 		case SDL_KEYDOWN:
 			switch (Event.key.keysym.sym) {
 			case SDLK_ESCAPE:
@@ -755,11 +768,11 @@ int main(int argc, char **argv) {
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetSwapInterval(1);
 
-	SDL_Window *Window = SDL_CreateWindow("Undercurrents", 0, 0,
-	    windowWidth, windowHeight, SDL_WINDOW_OPENGL);
-	assert(Window);
-	SDL_GLContext Context = SDL_GL_CreateContext(Window);
-	assert(Context);
+	SDL_Window *window = SDL_CreateWindow("Undercurrents", 0, 0,
+	    windowWidth, windowHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+	assert(window != NULL);
+	SDL_GLContext context = SDL_GL_CreateContext(window);
+	assert(context != NULL);
 
 	glMatrixMode(GL_PROJECTION);
 	glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
@@ -988,7 +1001,7 @@ int main(int argc, char **argv) {
 
 swap:
 		// swap windows
-		SDL_GL_SwapWindow(Window);
+		SDL_GL_SwapWindow(window);
 		SDL_Delay(1);
 	}
 
