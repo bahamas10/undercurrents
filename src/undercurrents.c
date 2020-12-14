@@ -743,7 +743,6 @@ int main(int argc, char **argv) {
 	printControls(stdout);
 	printf("\n");
 
-
 	// main loop
 	running = true;
 	while (running) {
@@ -849,7 +848,6 @@ int main(int argc, char **argv) {
 					}
 				}
 			}
-
 		}
 
 		// clear screen
