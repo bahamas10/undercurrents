@@ -14,6 +14,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -476,19 +477,78 @@ void usage(FILE *s) {
  * Main method!
  */
 int main(int argc, char **argv) {
-	int opt;
-	while ((opt = getopt(argc, argv, "h")) != -1) {
-		switch (opt) {
-		case 'h':
-			usage(stdout);
-			return (0);
-		default:
-			usage(stderr);
-			return (1);
+	/*
+	 * Parse arguments
+	 *
+	 * Arguments are valid as both short opts (single '-') and long opts
+	 * (double '--').
+	 *
+	 * Double options will match 1-to-1 with the global configuration
+	 * variables.  For example:
+	 *
+	 *   --windowWidth 600 --particleExpandRate 20
+	 *
+	 * Will set windowWidth=600 and particleExpandRate=20 as opposed to
+	 * using the #define'd values.
+	 */
+	argv++;
+	while (*argv != NULL) {
+		char *arg = *argv;
+
+		if (strncmp(arg, "--", 2) == 0) {
+			// long-options
+			arg += 2;
+			if (strcmp(arg, "help") == 0) {
+				usage(stdout);
+				return 0;
+			}
+
+			/*
+			 * all global options can be modified with
+			 * long-options.  because they are all "int" type that
+			 * conversion is done here.
+			 */
+			char *next = *(argv + 1);
+			char *end = NULL;
+			errno = 0;
+			int num = strtol(next, &end, 10);
+			if (next == end || errno != 0 || num < 0) {
+				fprintf(stderr, "failed to convert '%s' to positive int\n", next);
+				goto error;
+			}
+
+			if (strcmp(arg, "windowWidth") == 0) {
+				windowWidth = num;
+			 } else if (strcmp(arg, "windowHeight") == 0) {
+				windowHeight = num;
+			} else {
+				goto error;
+			}
+
+			argv++;
+		} else if (strncmp(arg, "-", 1) == 0) {
+			// short options
+			arg++;
+			switch (arg[0]) {
+			case 'h':
+				usage(stdout);
+				return 0;
+			default:
+				goto error;
+			}
+		} else {
+			// invalid option
+			goto error;
 		}
+
+		argv++;
+		continue;
+error:
+		fprintf(stderr, "invalid argument: '%s'\n\n", *argv);
+		usage(stderr);
+		return 1;
+
 	}
-	argc -= optind;
-	argv += optind;
 
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetSwapInterval(1);
@@ -735,8 +795,8 @@ int main(int argc, char **argv) {
 						continue;
 					}
 
-					float yd = (windowWidth / 2 + p2->y) - (windowHeight / 2 + p->y);
-					float xd = (windowWidth / 2 + p2->x) - (windowHeight / 2 + p->x);
+					float yd = p2->y -p->y;
+					float xd = p2->x -p->x;
 
 					// distance between 2 particles
 					float d = sqrt((xd * xd) + (yd * yd));
