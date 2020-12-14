@@ -48,9 +48,14 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#include <SDL.h>
+#include <SDL_opengl.h>
+#else
 #include <GL/gl.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
+#endif
 
 #include "particle.h"
 #include "ryb2rgb.h"
@@ -323,7 +328,7 @@ RGB rainbow(unsigned int idx) {
 void *safeMalloc(size_t size, const char *msg) {
 	void *ptr = malloc(size);
 	if (ptr == NULL) {
-		err(2, msg);
+		err(2, "malloc %s", msg);
 	}
 	return ptr;
 }
@@ -780,6 +785,10 @@ int main(int argc, char **argv) {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	// clear screen initially
+	glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
+	glRecti(0, 0, windowWidth, windowHeight);
 
 	// initialize random
 	srand(time(NULL));

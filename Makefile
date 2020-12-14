@@ -1,8 +1,16 @@
 CC := cc
-CFLAGS := `sdl2-config --libs --cflags` -lGL -lm -Wall -Werror -O2
+CFLAGS := -Wall -Werror -O2
+
+UNAME := $(shell uname -s)
+
+ifeq ($(UNAME),Darwin)
+	GL := -framework OpenGL
+else
+	GL := -lGL
+endif
 
 undercurrents: src/undercurrents.c src/ryb2rgb.o src/particle.o
-	$(CC) -o $@ $(CFLAGS) $^
+	$(CC) -o $@ `sdl2-config --libs --cflags` $(GL) -lm $(CFLAGS) $^
 
 src/ryb2rgb.o: src/ryb2rgb.c src/ryb2rgb.h
 	$(CC) -o $@ -c $(CFLAGS) $<
