@@ -501,6 +501,8 @@ void printConfiguration(FILE *s) {
 	fprintf(s, " ringsMaximum=%d\n", ringsMaximum);
 	fprintf(s, " alphaBackground=%d\n", alphaBackground);
 	fprintf(s, " alphaElements=%d\n", alphaElements);
+	fprintf(s, " timerPrintStatusLine=%d\n", timerPrintStatusLine);
+	fprintf(s, " timerAddNewRing=%d\n", timerAddNewRing);
 }
 
 /*

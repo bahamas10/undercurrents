@@ -23,7 +23,7 @@ Usage
 -----
 
 ```
-./undercurrents -h
+$ ./undercurrents -h
 Usage: undercurrents [-h] [--longOpt var]
 
 Options
@@ -49,6 +49,9 @@ Configuration
  ringsMaximum=34
  alphaBackground=3
  alphaElements=10
+ timerPrintStatusLine=2000
+ timerAddNewRing=1000
+
 
 Controls
 - press up / down to modify expansion rate
