@@ -233,13 +233,12 @@ char *colorModeToString(enum ColorMode mode) {
  * Generate an RGB color from a given index.
  *
  * adapted from
- * https://community.khronos.org/t/how-does-one-create-animated-rgb-rainbow-effect-on-objects-lines-quads-triangles/76562/13
+ * https://community.khronos.org/t/a/76562/14
  */
 #define MAX_COLORS (256 * 6)
 RGB rainbow(unsigned int idx) {
 	assert(idx >= 0);
 	assert(idx < MAX_COLORS);
-	//idx = MAX_COLORS - idx - 1;
 
 	RGB rgb;
 	float a, b, c;
@@ -417,7 +416,6 @@ void DrawCircle(float cx, float cy, float r) {
 	float x = r;//we start at angle = 0
 	float y = 0;
 
-	//glBegin(GL_LINE_LOOP);
 	glBegin(GL_POLYGON);
 	for (int ii = 0; ii < num_segments; ii++) {
 		glVertex2f(x + cx, y + cy);//output vertex
@@ -524,11 +522,14 @@ void printUsage(FILE *s) {
 	fprintf(s, "Usage: undercurrents [-h] [--longOpt var]\n");
 	fprintf(s, "\n");
 	fprintf(s, "Options\n");
-	fprintf(s, "   -h, --help                      print this message and exit\n");
-	fprintf(s, "   --configVariableName value      set a configuration variable, see below\n");
+	fprintf(s, "   -h, --help                      "
+	    "print this message and exit\n");
+	fprintf(s, "   --configVariableName value      "
+	    "set a configuration variable, see below\n");
 	fprintf(s, "\n");
 	fprintf(s, " configuration variables can be passed as long-opts\n");
-	fprintf(s, "   ie: undcurrents --windowHeight 500 --windowWidth 700 --ringsMaximum 20\n");
+	fprintf(s, "   ie: undcurrents --windowHeight 500 --windowWidth 700 "
+	    "--ringsMaximum 20\n");
 	fprintf(s, "\n");
 	printConfiguration(s);
 	fprintf(s, "\n");
@@ -573,7 +574,7 @@ void parseArguments(char **argv) {
 			errno = 0;
 			int num = strtol(next, &end, 10);
 			if (next == end || errno != 0 || num < 0) {
-				fprintf(stderr, "failed to convert '%s' to positive int\n", next);
+				fprintf(stderr, "failed to parse '%s'\n", next);
 				goto error;
 			}
 
@@ -658,13 +659,15 @@ void processEvents() {
 				break;
 			case SDLK_UP:
 				particleExpandRate++;
-				printf("particleExpandRate=%u\n", particleExpandRate);
+				printf("particleExpandRate=%u\n",
+				    particleExpandRate);
 				break;
 			case SDLK_DOWN:
 				if (particleExpandRate > 0) {
 					particleExpandRate--;
 				}
-				printf("particleExpandRate=%u\n", particleExpandRate);
+				printf("particleExpandRate=%u\n",
+				    particleExpandRate);
 				break;
 			case SDLK_LEFT:
 				if (ringsMaximum > 0) {
@@ -774,7 +777,8 @@ int main(int argc, char **argv) {
 				printStatusLineCounter += timerPrintStatusLine;
 			}
 			if (i > 0) {
-				fprintf(stderr, "[warn] missed %d status line calls\n", i);
+				fprintf(stderr,
+				    "[warn] missed %d status line calls\n", i);
 			}
 		}
 
@@ -792,10 +796,20 @@ int main(int argc, char **argv) {
 				ringCount--;
 			}
 
-			// add a particle to each existing ring
+			// add particle(s) to each existing ring
 			ringPtr = rings;
 			for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
-				int num = (i / 4) + 2;
+				/*
+				 * Calculate how many particles to add
+				 *
+				 * I'd like to make this function somehow more
+				 * configurable.  The basic idea is that 'i' is
+				 * the number of the current ring being
+				 * processed, where 0 is always the innermost
+				 * ring and the number increments as we loop
+				 * towards the more outside rings.
+				 */
+				int num = (i / 4) + 3;
 
 				for (int j = 0; j < num; j++) {
 					ParticleNode *head = ringPtr->particleNode;
