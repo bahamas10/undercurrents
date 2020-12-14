@@ -444,54 +444,77 @@ void setColor(unsigned int idx, const float magic[8][3], int alpha) {
 }
 
 /*
- * Print the usage message to the given FILE stream
+ * Print the current configuration settings to the given FILE stream
  */
-void usage(FILE *s) {
+void printConfiguration(FILE *s) {
+	fprintf(s, "Configuration\n");
+	fprintf(s, " windowWidth=%d\n", windowWidth);
+	fprintf(s, " windowHeight=%d\n", windowHeight);
+	fprintf(s, " particleSpeedMaximum=%d\n", particleSpeedMaximum);
+	fprintf(s, " particleRadiusMinimum=%d\n", particleRadiusMinimum);
+	fprintf(s, " particleRadiusMaximum=%d\n", particleRadiusMaximum);
+	fprintf(s, " particleHeightMinimum=%d\n", particleHeightMinimum);
+	fprintf(s, " particleHeightMaximum=%d\n", particleHeightMaximum);
+	fprintf(s, " particleLineDistanceMinimum=%d\n",
+	    particleLineDistanceMinimum);
+	fprintf(s, " particleLineDistanceMaximum=%d\n",
+	    particleLineDistanceMaximum);
+	fprintf(s, " particleExpandRate=%d\n", particleExpandRate);
+	fprintf(s, " particleBornTimerMaximum=%d\n",
+	    particleBornTimerMaximum);
+	fprintf(s, " particleColorSpeed=%d\n", particleColorSpeed);
+	fprintf(s, " ringsMaximum=%d\n", ringsMaximum);
+	fprintf(s, " alphaBackground=%d\n", alphaBackground);
+	fprintf(s, " alphaElements=%d\n", alphaElements);
+}
+
+/*
+ * Prin the controls to the given FILE stream
+ */
+void printControls(FILE *s) {
+	fprintf(s, "Controls\n");
 	fprintf(s, "- press up / down to modify expansion rate\n");
 	fprintf(s, "- press left / right to modify max rings\n");
 	fprintf(s, "- press 'r' to randomize colors\n");
 	fprintf(s, "- press 'f' to toggle fade\n");
 	fprintf(s, "- press 'm' to toggle color modes\n");
-	fprintf(s, "\n");
-	fprintf(s, "windowWidth=%d\n", windowWidth);
-	fprintf(s, "windowHeight=%d\n", windowHeight);
-	fprintf(s, "particleSpeedMaximum=%d\n", particleSpeedMaximum);
-	fprintf(s, "particleRadiusMinimum=%d\n", particleRadiusMinimum);
-	fprintf(s, "particleRadiusMaximum=%d\n", particleRadiusMaximum);
-	fprintf(s, "particleHeightMinimum=%d\n", particleHeightMinimum);
-	fprintf(s, "particleHeightMaximum=%d\n", particleHeightMaximum);
-	fprintf(s, "particleLineDistanceMinimum=%d\n",
-	    particleLineDistanceMinimum);
-	fprintf(s, "particleLineDistanceMaximum=%d\n",
-	    particleLineDistanceMaximum);
-	fprintf(s, "particleExpandRate=%d\n", particleExpandRate);
-	fprintf(s, "particleBornTimerMaximum=%d\n",
-	    particleBornTimerMaximum);
-	fprintf(s, "particleColorSpeed=%d\n", particleColorSpeed);
-	fprintf(s, "ringsMaximum=%d\n", ringsMaximum);
-	fprintf(s, "alphaBackground=%d\n", alphaBackground);
-	fprintf(s, "alphaElements=%d\n", alphaElements);
 }
 
 /*
- * Main method!
+ * Print the usage message to the given FILE stream
  */
-int main(int argc, char **argv) {
-	/*
-	 * Parse arguments
-	 *
-	 * Arguments are valid as both short opts (single '-') and long opts
-	 * (double '--').
-	 *
-	 * Double options will match 1-to-1 with the global configuration
-	 * variables.  For example:
-	 *
-	 *   --windowWidth 600 --particleExpandRate 20
-	 *
-	 * Will set windowWidth=600 and particleExpandRate=20 as opposed to
-	 * using the #define'd values.
-	 */
+void printUsage(FILE *s) {
+	fprintf(s, "Usage: undercurrents [-h] [--longOpt var]\n");
+	fprintf(s, "\n");
+	fprintf(s, "Options\n");
+	fprintf(s, "   -h, --help                     print this message and exit\n");
+	fprintf(s, "   --configVariableName value      set a configuration variable, see below\n");
+	fprintf(s, "\n");
+	fprintf(s, " configuration variables can be passed as long-opts\n");
+	fprintf(s, "   ie: undcurrents --windowHeight 500 --windowWidth 700 --ringsMaximum 20\n");
+	fprintf(s, "\n");
+	printConfiguration(s);
+	fprintf(s, "\n");
+	printControls(s);
+}
+
+/*
+ * Parse arguments
+ *
+ * Arguments are valid as both short opts (single '-') and long opts
+ * (double '--').
+ *
+ * Double options will match 1-to-1 with the global configuration
+ * variables.  For example:
+ *
+ *   --windowWidth 600 --particleExpandRate 20
+ *
+ * Will set windowWidth=600 and particleExpandRate=20 as opposed to
+ * using the #define'd values.
+ */
+void parseArguments(char **argv) {
 	argv++;
+
 	while (*argv != NULL) {
 		char *arg = *argv;
 
@@ -499,8 +522,8 @@ int main(int argc, char **argv) {
 			// long-options
 			arg += 2;
 			if (strcmp(arg, "help") == 0) {
-				usage(stdout);
-				return 0;
+				printUsage(stdout);
+				exit(0);
 			}
 
 			/*
@@ -531,8 +554,8 @@ int main(int argc, char **argv) {
 			arg++;
 			switch (arg[0]) {
 			case 'h':
-				usage(stdout);
-				return 0;
+				printUsage(stdout);
+				exit(0);
 			default:
 				goto error;
 			}
@@ -542,13 +565,20 @@ int main(int argc, char **argv) {
 		}
 
 		argv++;
-		continue;
-error:
-		fprintf(stderr, "invalid argument: '%s'\n\n", *argv);
-		usage(stderr);
-		return 1;
-
 	}
+
+	return;
+error:
+	fprintf(stderr, "invalid argument: '%s'\n\n", *argv);
+	printUsage(stderr);
+	exit(1);
+}
+
+/*
+ * Main method!
+ */
+int main(int argc, char **argv) {
+	parseArguments(argv);
 
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetSwapInterval(1);
@@ -578,7 +608,9 @@ error:
 	unsigned int delta;
 	unsigned int lastTime = 0;
 
-	usage(stdout);
+	printConfiguration(stdout);
+	printf("\n");
+	printControls(stdout);
 	printf("\n");
 
 	randomizeMagic(randomMagic);
