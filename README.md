@@ -27,7 +27,7 @@ Usage
 Usage: undercurrents [-h] [--longOpt var]
 
 Options
-   -h, --help                     print this message and exit
+   -h, --help                      print this message and exit
    --configVariableName value      set a configuration variable, see below
 
  configuration variables can be passed as long-opts

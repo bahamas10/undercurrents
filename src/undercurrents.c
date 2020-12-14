@@ -487,7 +487,7 @@ void printUsage(FILE *s) {
 	fprintf(s, "Usage: undercurrents [-h] [--longOpt var]\n");
 	fprintf(s, "\n");
 	fprintf(s, "Options\n");
-	fprintf(s, "   -h, --help                     print this message and exit\n");
+	fprintf(s, "   -h, --help                      print this message and exit\n");
 	fprintf(s, "   --configVariableName value      set a configuration variable, see below\n");
 	fprintf(s, "\n");
 	fprintf(s, " configuration variables can be passed as long-opts\n");
