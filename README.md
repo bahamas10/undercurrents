@@ -27,38 +27,41 @@ $ ./undercurrents -h
 Usage: undercurrents [-h] [--longOpt var]
 
 Options
-   -h, --help                      print this message and exit
-   --configVariableName value      set a configuration variable, see below
+    -h, --help                      print this message and exit
+    --configVariableName value      set a configuration variable, see below
 
- configuration variables can be passed as long-opts
-   ie: undcurrents --windowHeight 500 --windowWidth 700 --ringsMaximum 20
+  configuration variables can be passed as long-opts
+    ie: undcurrents --windowHeight 500 --windowWidth 700 --ringsMaximum 20
 
 Configuration
- windowWidth=1200
- windowHeight=1200
- particleSpeedMaximum=25
- particleRadiusMinimum=1
- particleRadiusMaximum=5
- particleHeightMinimum=0
- particleHeightMaximum=5
- particleLineDistanceMinimum=0
- particleLineDistanceMaximum=200
- particleExpandRate=20
- particleBornTimerMaximum=1000
- particleColorSpeed=50
- ringsMaximum=34
- alphaBackground=3
- alphaElements=10
- timerPrintStatusLine=2000
- timerAddNewRing=1000
-
+  windowWidth=1200
+  windowHeight=1200
+  particleSpeedMaximum=30
+  particleSpeedRate=100
+  particleRadiusMinimum=1
+  particleRadiusMaximum=5
+  particleHeightMinimum=0
+  particleHeightMaximum=5
+  particleLineDistanceMinimum=0
+  particleLineDistanceMaximum=200
+  particleLineRingDisable=-1
+  particleExpandRate=20
+  particleBornTimerMaximum=1000
+  particleColorSpeed=50
+  ringsMaximum=35
+  alphaBackground=3
+  alphaElements=10
+  timerPrintStatusLine=2000
+  timerAddNewRing=1000
 
 Controls
-- press up / down to modify expansion rate
-- press left / right to modify max rings
-- press 'r' to randomize colors
-- press 'f' to toggle fade
+- press up / down to modify particle speed
+- press left / right to modify expansion rate
+- press 'b' to toggle blank mode
+- press 'f' to toggle fading mode
+- press 'l' to toggle particle lines mode
 - press 'm' to toggle color modes
+- press 'r' to randomize colors
 ```
 
 License

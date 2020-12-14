@@ -64,8 +64,13 @@
 /*
  * Maximum particle circular speed.  Each particle will have a speed between
  * 0 through PARTICLE_SPEED_MAXIMUM inclusive.
+ *
+ * PARTICLE_SPEED_RATE is the rate (percentage, 100 by default) to multiply the
+ * speed by.  This variable is most useful to be modified while the program is
+ * running - which is why this can be modified with the arrow keys.
  */
-#define PARTICLE_SPEED_MAXIMUM 25
+#define PARTICLE_SPEED_MAXIMUM 30
+#define PARTICLE_SPEED_RATE 100
 
 /*
  * Particle radius (dot when drawn).  Each particle will have a radius between
@@ -90,9 +95,16 @@
  * differently, as particles pass close by each other they will connect with a
  * line while in range.  The range is from PARTICLE_LINE_DISTANCE_MINIMUM
  * through PARTICLE_LINE_DISTANCE_MAXIMUM.
+ *
+ * PARTICLE_LINE_RING_DISABLE is a bit of an odd (and custom) variable.
+ * Setting this a positive number will result in all particle in that ring (and
+ * beyond) to have their lines disabled.  This is a way of making it so the
+ * outermost rings will not have lines drawn in them.  Setting this to -1 will
+ * result in *all* rings/orbits having particle lines enabled.
  */
 #define PARTICLE_LINE_DISTANCE_MINIMUM 0
 #define PARTICLE_LINE_DISTANCE_MAXIMUM 200
+#define PARTICLE_LINE_RING_DISABLE -1
 
 /*
  * How quickly the particles expand outward from the center.
@@ -120,11 +132,12 @@
  * The maximum number of rings to create.  Any new rings will result in the
  * last ring being recycled.
  */
-#define RINGS_MAXIMUM 34
+#define RINGS_MAXIMUM 35
 
 /*
  * The alpha value to use (when fading is enabled) when clearing the screen
  * (ALPHA_BACKGROUND) and when drawing the particles or lines (ALPHA_ELEMENTS).
+ * This number should be between 0 (fully transparent) and 100 (fully opaque).
  */
 #define ALPHA_BACKGROUND 3
 #define ALPHA_ELEMENTS 10
@@ -183,6 +196,12 @@ ParticleNode *freeParticleNodes = NULL;
 // If fading mode is enabled or disabled
 bool fadingMode = true;
 
+// If blank mode is enabled or disabled
+bool blankMode = false;
+
+// If lines should be drawn
+bool linesEnabled = true;
+
 // If the program is running
 bool running = false;
 
@@ -199,12 +218,14 @@ int currentColorMode = ColorModeSolid;
 int windowWidth = WINDOW_WIDTH;
 int windowHeight = WINDOW_HEIGHT;
 int particleSpeedMaximum = PARTICLE_SPEED_MAXIMUM;
+int particleSpeedRate = PARTICLE_SPEED_RATE;
 int particleRadiusMinimum = PARTICLE_RADIUS_MINIMUM;
 int particleRadiusMaximum = PARTICLE_RADIUS_MAXIMUM;
 int particleHeightMinimum = PARTICLE_HEIGHT_MINIMUM;
 int particleHeightMaximum = PARTICLE_HEIGHT_MAXIMUM;
 int particleLineDistanceMinimum = PARTICLE_LINE_DISTANCE_MINIMUM;
 int particleLineDistanceMaximum = PARTICLE_LINE_DISTANCE_MAXIMUM;
+int particleLineRingDisable = PARTICLE_LINE_RING_DISABLE;
 int particleExpandRate = PARTICLE_EXPAND_RATE;
 int particleBornTimerMaximum = PARTICLE_BORN_TIMER_MAXIMUM;
 int particleColorSpeed = PARTICLE_COLOR_SPEED;
@@ -481,26 +502,28 @@ void setColor(unsigned int idx, const float magic[8][3], int alpha) {
  */
 void printConfiguration(FILE *s) {
 	fprintf(s, "Configuration\n");
-	fprintf(s, " windowWidth=%d\n", windowWidth);
-	fprintf(s, " windowHeight=%d\n", windowHeight);
-	fprintf(s, " particleSpeedMaximum=%d\n", particleSpeedMaximum);
-	fprintf(s, " particleRadiusMinimum=%d\n", particleRadiusMinimum);
-	fprintf(s, " particleRadiusMaximum=%d\n", particleRadiusMaximum);
-	fprintf(s, " particleHeightMinimum=%d\n", particleHeightMinimum);
-	fprintf(s, " particleHeightMaximum=%d\n", particleHeightMaximum);
-	fprintf(s, " particleLineDistanceMinimum=%d\n",
+	fprintf(s, "  windowWidth=%d\n", windowWidth);
+	fprintf(s, "  windowHeight=%d\n", windowHeight);
+	fprintf(s, "  particleSpeedMaximum=%d\n", particleSpeedMaximum);
+	fprintf(s, "  particleSpeedRate=%d\n", particleSpeedRate);
+	fprintf(s, "  particleRadiusMinimum=%d\n", particleRadiusMinimum);
+	fprintf(s, "  particleRadiusMaximum=%d\n", particleRadiusMaximum);
+	fprintf(s, "  particleHeightMinimum=%d\n", particleHeightMinimum);
+	fprintf(s, "  particleHeightMaximum=%d\n", particleHeightMaximum);
+	fprintf(s, "  particleLineDistanceMinimum=%d\n",
 	    particleLineDistanceMinimum);
-	fprintf(s, " particleLineDistanceMaximum=%d\n",
+	fprintf(s, "  particleLineDistanceMaximum=%d\n",
 	    particleLineDistanceMaximum);
-	fprintf(s, " particleExpandRate=%d\n", particleExpandRate);
-	fprintf(s, " particleBornTimerMaximum=%d\n",
+	fprintf(s, "  particleLineRingDisable=%d\n", particleLineRingDisable);
+	fprintf(s, "  particleExpandRate=%d\n", particleExpandRate);
+	fprintf(s, "  particleBornTimerMaximum=%d\n",
 	    particleBornTimerMaximum);
-	fprintf(s, " particleColorSpeed=%d\n", particleColorSpeed);
-	fprintf(s, " ringsMaximum=%d\n", ringsMaximum);
-	fprintf(s, " alphaBackground=%d\n", alphaBackground);
-	fprintf(s, " alphaElements=%d\n", alphaElements);
-	fprintf(s, " timerPrintStatusLine=%d\n", timerPrintStatusLine);
-	fprintf(s, " timerAddNewRing=%d\n", timerAddNewRing);
+	fprintf(s, "  particleColorSpeed=%d\n", particleColorSpeed);
+	fprintf(s, "  ringsMaximum=%d\n", ringsMaximum);
+	fprintf(s, "  alphaBackground=%d\n", alphaBackground);
+	fprintf(s, "  alphaElements=%d\n", alphaElements);
+	fprintf(s, "  timerPrintStatusLine=%d\n", timerPrintStatusLine);
+	fprintf(s, "  timerAddNewRing=%d\n", timerAddNewRing);
 }
 
 /*
@@ -508,11 +531,13 @@ void printConfiguration(FILE *s) {
  */
 void printControls(FILE *s) {
 	fprintf(s, "Controls\n");
-	fprintf(s, "- press up / down to modify expansion rate\n");
-	fprintf(s, "- press left / right to modify max rings\n");
-	fprintf(s, "- press 'r' to randomize colors\n");
-	fprintf(s, "- press 'f' to toggle fade\n");
+	fprintf(s, "- press up / down to modify particle speed\n");
+	fprintf(s, "- press left / right to modify expansion rate\n");
+	fprintf(s, "- press 'b' to toggle blank mode\n");
+	fprintf(s, "- press 'f' to toggle fading mode\n");
+	fprintf(s, "- press 'l' to toggle particle lines mode\n");
 	fprintf(s, "- press 'm' to toggle color modes\n");
+	fprintf(s, "- press 'r' to randomize colors\n");
 }
 
 /*
@@ -522,13 +547,13 @@ void printUsage(FILE *s) {
 	fprintf(s, "Usage: undercurrents [-h] [--longOpt var]\n");
 	fprintf(s, "\n");
 	fprintf(s, "Options\n");
-	fprintf(s, "   -h, --help                      "
+	fprintf(s, "    -h, --help                      "
 	    "print this message and exit\n");
-	fprintf(s, "   --configVariableName value      "
+	fprintf(s, "    --configVariableName value      "
 	    "set a configuration variable, see below\n");
 	fprintf(s, "\n");
-	fprintf(s, " configuration variables can be passed as long-opts\n");
-	fprintf(s, "   ie: undcurrents --windowHeight 500 --windowWidth 700 "
+	fprintf(s, "  configuration variables can be passed as long-opts\n");
+	fprintf(s, "    ie: undcurrents --windowHeight 500 --windowWidth 700 "
 	    "--ringsMaximum 20\n");
 	fprintf(s, "\n");
 	printConfiguration(s);
@@ -572,8 +597,12 @@ void parseArguments(char **argv) {
 			char *next = *(argv + 1);
 			char *end = NULL;
 			errno = 0;
-			int num = strtol(next, &end, 10);
-			if (next == end || errno != 0 || num < 0) {
+			int num;
+			if (next != NULL) {
+				num = strtol(next, &end, 10);
+			}
+
+			if (next == NULL || next == end || errno != 0 || num < 0) {
 				fprintf(stderr, "failed to parse '%s'\n", next);
 				goto error;
 			}
@@ -596,6 +625,8 @@ void parseArguments(char **argv) {
 				particleLineDistanceMinimum = num;
 			} else if (strcmp(arg, "particleLineDistanceMaximum") == 0) {
 				particleLineDistanceMaximum = num;
+			} else if (strcmp(arg, "particleLineRingDisable") == 0) {
+				particleLineRingDisable = num;
 			} else if (strcmp(arg, "particleExpandRate") == 0) {
 				particleExpandRate = num;
 			} else if (strcmp(arg, "particleBornTimerMaximum") == 0) {
@@ -658,43 +689,52 @@ void processEvents() {
 				running = false;
 				break;
 			case SDLK_UP:
-				particleExpandRate++;
-				printf("particleExpandRate=%u\n",
-				    particleExpandRate);
+				particleSpeedRate++;
+				printf("particleSpeedRate=%d\n",
+				    particleSpeedRate);
 				break;
 			case SDLK_DOWN:
+				if (particleSpeedRate > 0) {
+					particleSpeedRate--;
+				}
+				printf("particleSpeedRate=%d\n",
+				    particleSpeedRate);
+				break;
+			case SDLK_LEFT:
 				if (particleExpandRate > 0) {
 					particleExpandRate--;
 				}
-				printf("particleExpandRate=%u\n",
+				printf("particleExpandRate=%d\n",
 				    particleExpandRate);
 				break;
-			case SDLK_LEFT:
-				if (ringsMaximum > 0) {
-					ringsMaximum--;
-				}
-				printf("ringsMaximum=%u\n", ringsMaximum);
-				break;
 			case SDLK_RIGHT:
-				ringsMaximum++;
-				printf("ringsMaximum=%u\n", ringsMaximum);
+				particleExpandRate++;
+				printf("particleExpandRate=%d\n",
+				    particleExpandRate);
+				break;
+			case SDLK_b:
+				blankMode = !blankMode;
+				printf("blank %s\n",
+				    blankMode ? "enabled" : "disabled");
 				break;
 			case SDLK_f:
 				fadingMode = !fadingMode;
-				if (fadingMode) {
-					printf("fading enabled\n");
-				} else {
-					printf("fading disabled\n");
-				}
+				printf("fading %s\n",
+				    fadingMode ? "enabled" : "disabled");
 				break;
-			case SDLK_r:
-				randomizeMagic(randomMagic);
-				printf("randomized colors\n");
+			case SDLK_l:
+				linesEnabled = !linesEnabled;
+				printf("lines %s\n",
+				    linesEnabled ? "enabled" : "disabled");
 				break;
 			case SDLK_m:
 				currentColorMode = (currentColorMode + 1) % 4;
 				printf("currentColorMode = %s\n",
 				    colorModeToString(currentColorMode));
+			case SDLK_r:
+				randomizeMagic(randomMagic);
+				printf("randomized colors\n");
+				break;
 			default:
 				break;
 			}
@@ -817,9 +857,14 @@ int main(int argc, char **argv) {
 
 					if (head != NULL) {
 						assert(head->particle);
-						// TODO fix this height bs
-						int variance = particleHeightMaximum - particleHeightMinimum;
-						new->particle->height = head->particle->height + (rand() % variance);
+						/*
+						 * We use one of the particles
+						 * existing height as an offset
+						 * for the newly calculated
+						 * particle.  This is a little
+						 * sus but it works.
+						 */
+						new->particle->height += head->particle->height;
 					}
 
 					new->next = head;
@@ -851,9 +896,11 @@ int main(int argc, char **argv) {
 			for (; particlePtr != NULL; particlePtr = particlePtr->next) {
 				Particle *p = particlePtr->particle;
 
+				float speedRate = particleSpeedRate / 100.0;
+
 				// update particle location
 				p->height += (float)delta * (float)particleExpandRate / 1000.0;
-				p->position += (float)p->speed / (float)delta;
+				p->position += (float)delta * ((float)p->speed / p->height / 5.0 * speedRate);
 				particleCalculateCoordinates(p);
 
 				// reduce bornTimer by delta
@@ -870,6 +917,11 @@ int main(int argc, char **argv) {
 		float alpha = fadingMode ? ((float)alphaBackground / 100.0) : 1.0;
 		glColor4f(0.0f, 0.0f, 0.0f, alpha);
 		glRecti(0, 0, windowWidth, windowHeight);
+
+		// just finish if blank mode is set
+		if (blankMode) {
+			goto swap;
+		}
 
 		if (currentColorMode == ColorModeSolid) {
 			setColor(rainbowIdx, randomMagic, alphaElements);
@@ -907,6 +959,16 @@ int main(int argc, char **argv) {
 				// draw the particle
 				DrawParticle(p);
 
+				// stop here if lines aren't enabled
+				if (!linesEnabled) {
+					continue;
+				}
+
+				// check if this ring has lines disabled
+				if (particleLineRingDisable != -1 && i > particleLineRingDisable) {
+					continue;
+				}
+
 				// draw connected lines to any particles NEXT
 				// in the ring/orbit
 				ParticleNode *particlePtr2 = particlePtr->next;
@@ -931,6 +993,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
+swap:
 		// swap windows
 		SDL_GL_SwapWindow(Window);
 		SDL_Delay(1);
