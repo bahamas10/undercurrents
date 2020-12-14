@@ -1,7 +1,33 @@
 /*
  * Undercurrents
  *
- * A fun visualizer using C and OpenGL
+ * A fun visualizer using C and OpenGL.
+ *
+ * This code borrows spiritually from the algorithm used in the 2nd inspiration
+ * link belew.  It works by spawning "rings" of "particles", where each
+ * particle can only interact with particles in its own ring (usually by
+ * drawing lines between them if within a certain range).  Each "ring" can be
+ * thought of like a ring or orbit around a planet, where each particle is
+ * debris within that specific ring.  The rings spawn in the middle of the
+ * screen, and slowly eminate outwards while new rings are added on a given
+ * interval to the center.  When a maximum number of rings are generated they
+ * will be removed from the end of the list of rings.  All of the ranges and
+ * maximum valus can be configured below or with CLI options at runtime.
+ *
+ * To implement this, there are 3 types (structs) to consider:
+ *
+ * - Particle
+ * - ParticleNode
+ * - RingNode
+ *
+ * Particle represents a single particle (see particle.h for more information)
+ *
+ * ParticleNode can create a linked-list of Particles
+ *
+ * RingNode can create a linked-list of ParticleNodes
+ *
+ * Put simply: there are buckets of "rings", each with their own collection of
+ * particles in them - all implemented via linked-lists.
  *
  * Inspired from:
  * - https://www.renderforest.com/template/melodic-vibes-visualizer
