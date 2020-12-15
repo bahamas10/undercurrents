@@ -1,7 +1,7 @@
 Undercurrents
 =============
 
-Visualizer made in C and OpenGL and SDL2.
+Visualizer made in C and OpenGL with SDL2.
 
 About
 -----
