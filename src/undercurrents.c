@@ -637,6 +637,7 @@ void parseArguments(char **argv) {
 					*(ptr->value) = num;
 					break;
 				}
+				ptr++;
 			}
 
 			// check if the option didn't match
