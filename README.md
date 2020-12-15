@@ -62,6 +62,7 @@ Controls
 - press 'l' to toggle particle lines mode
 - press 'm' to toggle color modes
 - press 'r' to randomize colors
+- press 'p' to pause or unpause visuals
 ```
 
 License

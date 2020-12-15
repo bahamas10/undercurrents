@@ -216,6 +216,9 @@ bool linesEnabled = true;
 // If the program is running
 bool running = false;
 
+// If the animation is paused
+bool paused = false;
+
 // Magic colors (for use with ryb2rgb) randomized
 float randomMagic[8][3];
 
@@ -588,6 +591,7 @@ void printControls(FILE *s) {
 	fprintf(s, "- press 'l' to toggle particle lines mode\n");
 	fprintf(s, "- press 'm' to toggle color modes\n");
 	fprintf(s, "- press 'r' to randomize colors\n");
+	fprintf(s, "- press 'p' to pause or unpause visuals\n");
 }
 
 /*
@@ -771,6 +775,12 @@ void processEvents() {
 				currentColorMode = (currentColorMode + 1) % 4;
 				printf("currentColorMode = %s\n",
 				    colorModeToString(currentColorMode));
+				break;
+			case SDLK_p:
+				paused = !paused;
+				printf("%s\n",
+				    paused ? "paused" : "unpaused");
+				break;
 			case SDLK_r:
 				randomizeMagic(randomMagic);
 				printf("randomized colors\n");
@@ -855,6 +865,16 @@ int main(int argc, char **argv) {
 				    "[warn] missed %d status line calls\n", i);
 			}
 		}
+
+		// just end here if we are paused
+		if (paused) {
+			goto swap;
+		}
+
+		// clear screen
+		float alpha = fadingMode ? ((float)alphaBackground / 100.0) : 1.0;
+		glColor4f(0.0f, 0.0f, 0.0f, alpha);
+		glRecti(0, 0, windowWidth, windowHeight);
 
 		// check if new ring (and particles) should be created
 		addNewRingCounter -= delta;
@@ -946,11 +966,6 @@ int main(int argc, char **argv) {
 				}
 			}
 		}
-
-		// clear screen
-		float alpha = fadingMode ? ((float)alphaBackground / 100.0) : 1.0;
-		glColor4f(0.0f, 0.0f, 0.0f, alpha);
-		glRecti(0, 0, windowWidth, windowHeight);
 
 		// just finish if blank mode is set
 		if (blankMode) {
