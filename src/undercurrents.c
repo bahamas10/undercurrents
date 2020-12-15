@@ -535,6 +535,28 @@ void setColor(unsigned int idx, const float magic[8][3], int alpha) {
 }
 
 /*
+ * Set/reset the screen (should be called on creation or resize).
+ */
+void resetWindow(SDL_Window *window) {
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
+	glViewport(0, 0, windowWidth, windowHeight);
+	glEnable(GL_BLEND);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	// clear both buffers initially
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	SDL_GL_SetSwapInterval(0);
+	SDL_GL_SwapWindow(window);
+	SDL_GL_SetSwapInterval(1);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+/*
  * Print the current configuration settings to the given FILE stream
  */
 void printConfiguration(FILE *s) {
@@ -676,6 +698,7 @@ error:
  */
 void processEvents() {
 	SDL_Event Event;
+	SDL_Window *window;
 	while (SDL_PollEvent(&Event)) {
 		switch (Event.type) {
 		case SDL_QUIT:
@@ -686,9 +709,8 @@ void processEvents() {
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
 				windowWidth = Event.window.data1;
 				windowHeight = Event.window.data2;
-				glLoadIdentity();
-				glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
-				glViewport(0, 0, windowWidth, windowHeight);
+				window = SDL_GetWindowFromID(Event.window.windowID);
+				resetWindow(window);
 				printf("window size changed to %dx%d\n",
 				    windowWidth, windowHeight);
 				break;
@@ -778,25 +800,8 @@ int main(int argc, char **argv) {
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 	assert(context != NULL);
 
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
-	glViewport(0, 0, windowWidth, windowHeight);
-	glEnable(GL_BLEND);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-
-	// clear both buffers initially
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	SDL_GL_SetSwapInterval(0);
-	SDL_GL_SwapWindow(window);
-	SDL_GL_SetSwapInterval(1);
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-	glRecti(0, 0, windowWidth, windowHeight);
+	// initialize the screen/viewport/background color
+	resetWindow(window);
 
 	// initialize random
 	srand(time(NULL));
