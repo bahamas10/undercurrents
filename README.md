@@ -3,6 +3,13 @@ Undercurrents
 
 Visualizer made in C and OpenGL and SDL2.
 
+About
+-----
+
+I wrote this visualizer specifically for a song I made called Undercurrents.
+
+https://www.youtube.com/watch?v=bkAQWANJrQU
+
 Compile
 -------
 
