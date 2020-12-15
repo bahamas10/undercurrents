@@ -450,6 +450,10 @@ void recycleLastRing() {
 	// grab the last item
 	RingNode *last = ringPtr->next;
 
+	if (last == NULL) {
+		return;
+	}
+
 	// truncate the list
 	ringPtr->next = NULL;
 
@@ -710,6 +714,7 @@ error:
 void processEvents() {
 	SDL_Event Event;
 	SDL_Window *window;
+	int i;
 	while (SDL_PollEvent(&Event)) {
 		switch (Event.type) {
 		case SDL_QUIT:
@@ -757,31 +762,47 @@ void processEvents() {
 				    particleLineDistanceFactor);
 				break;
 			case SDLK_b:
+				// b = blank
 				blankMode = !blankMode;
 				printf("blank %s\n",
 				    blankMode ? "enabled" : "disabled");
 				break;
+			case SDLK_c:
+				// c = clear
+				i = 0;
+				while (ringCount > 0) {
+					recycleLastRing();
+					ringCount--;
+					i++;
+				}
+				printf("cleared %d rings\n", i);
+				break;
 			case SDLK_f:
+				// f = fading
 				fadingMode = !fadingMode;
 				printf("fading %s\n",
 				    fadingMode ? "enabled" : "disabled");
 				break;
 			case SDLK_l:
+				// l = lines
 				linesEnabled = !linesEnabled;
 				printf("lines %s\n",
 				    linesEnabled ? "enabled" : "disabled");
 				break;
 			case SDLK_m:
+				// m = color mode
 				currentColorMode = (currentColorMode + 1) % 4;
 				printf("currentColorMode = %s\n",
 				    colorModeToString(currentColorMode));
 				break;
 			case SDLK_p:
+				// p = play/pause
 				paused = !paused;
 				printf("%s\n",
 				    paused ? "paused" : "unpaused");
 				break;
 			case SDLK_r:
+				// r = randomize colors
 				randomizeMagic(randomMagic);
 				printf("randomized colors\n");
 				break;
