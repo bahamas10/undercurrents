@@ -70,12 +70,12 @@
  * Maximum particle circular speed.  Each particle will have a speed between
  * 0 through PARTICLE_SPEED_MAXIMUM inclusive.
  *
- * PARTICLE_SPEED_RATE is the rate (percentage, 100 by default) to multiply the
- * speed by.  This variable is most useful to be modified while the program is
- * running - which is why this can be modified with the arrow keys.
+ * PARTICLE_SPEED_FACTOR is the rate (percentage, 100 by default) to multiply
+ * the speed by.  This variable is most useful to be modified while the program
+ * is running - which is why this can be modified with the arrow keys.
  */
 #define PARTICLE_SPEED_MAXIMUM 30
-#define PARTICLE_SPEED_RATE 100
+#define PARTICLE_SPEED_FACTOR 100
 
 /*
  * Particle radius (dot when drawn).  Each particle will have a radius between
@@ -101,6 +101,11 @@
  * line while in range.  The range is from PARTICLE_LINE_DISTANCE_MINIMUM
  * through PARTICLE_LINE_DISTANCE_MAXIMUM.
  *
+ * PARTICLE_LINE_DISTANCE_FACTOR operates the same way as
+ * PARTICLE_SPEED_FACTOR: it allows the line distances to be modified in
+ * realtime.  This value can be thought of as a percentage and defaults to 100
+ * (normal).
+ *
  * PARTICLE_LINE_RING_DISABLE is a bit of an odd (and custom) variable.
  * Setting this a positive number will result in all particle in that ring (and
  * beyond) to have their lines disabled.  This is a way of making it so the
@@ -109,6 +114,7 @@
  */
 #define PARTICLE_LINE_DISTANCE_MINIMUM 0
 #define PARTICLE_LINE_DISTANCE_MAXIMUM 200
+#define PARTICLE_LINE_DISTANCE_FACTOR 100
 #define PARTICLE_LINE_RING_DISABLE -1
 
 /*
@@ -223,13 +229,14 @@ int currentColorMode = ColorModeSolid;
 int windowWidth = WINDOW_WIDTH;
 int windowHeight = WINDOW_HEIGHT;
 int particleSpeedMaximum = PARTICLE_SPEED_MAXIMUM;
-int particleSpeedRate = PARTICLE_SPEED_RATE;
+int particleSpeedFactor = PARTICLE_SPEED_FACTOR;
 int particleRadiusMinimum = PARTICLE_RADIUS_MINIMUM;
 int particleRadiusMaximum = PARTICLE_RADIUS_MAXIMUM;
 int particleHeightMinimum = PARTICLE_HEIGHT_MINIMUM;
 int particleHeightMaximum = PARTICLE_HEIGHT_MAXIMUM;
 int particleLineDistanceMinimum = PARTICLE_LINE_DISTANCE_MINIMUM;
 int particleLineDistanceMaximum = PARTICLE_LINE_DISTANCE_MAXIMUM;
+int particleLineDistanceFactor = PARTICLE_LINE_DISTANCE_FACTOR;
 int particleLineRingDisable = PARTICLE_LINE_RING_DISABLE;
 int particleExpandRate = PARTICLE_EXPAND_RATE;
 int particleBornTimerMaximum = PARTICLE_BORN_TIMER_MAXIMUM;
@@ -253,7 +260,7 @@ struct ConfigurationParameter config[] = {
 	{ "windowWidth", &windowWidth },
 	{ "windowHeight", &windowHeight },
 	{ "particleSpeedMaximum", &particleSpeedMaximum },
-	{ "particleSpeedRate", &particleSpeedRate },
+	{ "particleSpeedFactor", &particleSpeedFactor },
 	{ "particleRadiusMinimum", &particleRadiusMinimum },
 	{ "particleRadiusMaximum", &particleRadiusMaximum },
 	{ "particleHeightMinimum", &particleHeightMinimum },
@@ -575,7 +582,7 @@ void printConfiguration(FILE *s) {
 void printControls(FILE *s) {
 	fprintf(s, "Controls\n");
 	fprintf(s, "- press up / down to modify particle speed\n");
-	fprintf(s, "- press left / right to modify expansion rate\n");
+	fprintf(s, "- press left / right to modify particle line distance factor\n");
 	fprintf(s, "- press 'b' to toggle blank mode\n");
 	fprintf(s, "- press 'f' to toggle fading mode\n");
 	fprintf(s, "- press 'l' to toggle particle lines mode\n");
@@ -722,28 +729,28 @@ void processEvents() {
 				running = false;
 				break;
 			case SDLK_UP:
-				particleSpeedRate++;
-				printf("particleSpeedRate=%d\n",
-				    particleSpeedRate);
+				particleSpeedFactor++;
+				printf("particleSpeedFactor=%d\n",
+				    particleSpeedFactor);
 				break;
 			case SDLK_DOWN:
-				if (particleSpeedRate > 0) {
-					particleSpeedRate--;
+				if (particleSpeedFactor > 0) {
+					particleSpeedFactor--;
 				}
-				printf("particleSpeedRate=%d\n",
-				    particleSpeedRate);
+				printf("particleSpeedFactor=%d\n",
+				    particleSpeedFactor);
 				break;
 			case SDLK_LEFT:
-				if (particleExpandRate > 0) {
-					particleExpandRate--;
+				if (particleLineDistanceFactor > 0) {
+					particleLineDistanceFactor--;
 				}
-				printf("particleExpandRate=%d\n",
-				    particleExpandRate);
+				printf("particleLineDistanceFactor=%d\n",
+				    particleLineDistanceFactor);
 				break;
 			case SDLK_RIGHT:
-				particleExpandRate++;
-				printf("particleExpandRate=%d\n",
-				    particleExpandRate);
+				particleLineDistanceFactor++;
+				printf("particleLineDistanceFactor=%d\n",
+				    particleLineDistanceFactor);
 				break;
 			case SDLK_b:
 				blankMode = !blankMode;
@@ -923,7 +930,7 @@ int main(int argc, char **argv) {
 			for (; particlePtr != NULL; particlePtr = particlePtr->next) {
 				Particle *p = particlePtr->particle;
 
-				float speedRate = particleSpeedRate / 100.0;
+				float speedRate = particleSpeedFactor / 100.0;
 
 				// update particle location
 				p->height += (float)delta * (float)particleExpandRate / 1000.0;
@@ -1013,8 +1020,10 @@ int main(int argc, char **argv) {
 					// distance between 2 particles
 					float d = sqrt((xd * xd) + (yd * yd));
 
+					float maxDistance = (float)p->lineDistance * (particleLineDistanceFactor / 100.0);
+
 					// draw a line between the particles
-					if (d < p->lineDistance) {
+					if (d < maxDistance) {
 						DrawLinesConnectingParticles(p, p2);
 					}
 				}

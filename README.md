@@ -37,7 +37,7 @@ Configuration
   windowWidth=1200
   windowHeight=1200
   particleSpeedMaximum=30
-  particleSpeedRate=100
+  particleSpeedFactor=100
   particleRadiusMinimum=1
   particleRadiusMaximum=5
   particleHeightMinimum=0
@@ -49,14 +49,14 @@ Configuration
   particleBornTimerMaximum=1000
   particleColorSpeed=50
   ringsMaximum=35
-  alphaBackground=3
-  alphaElements=10
+  alphaBackground=7
+  alphaElements=25
   timerPrintStatusLine=2000
   timerAddNewRing=1000
 
 Controls
 - press up / down to modify particle speed
-- press left / right to modify expansion rate
+- press left / right to modify particle line distance factor
 - press 'b' to toggle blank mode
 - press 'f' to toggle fading mode
 - press 'l' to toggle particle lines mode
