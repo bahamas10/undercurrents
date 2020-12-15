@@ -144,8 +144,8 @@
  * (ALPHA_BACKGROUND) and when drawing the particles or lines (ALPHA_ELEMENTS).
  * This number should be between 0 (fully transparent) and 100 (fully opaque).
  */
-#define ALPHA_BACKGROUND 3
-#define ALPHA_ELEMENTS 10
+#define ALPHA_BACKGROUND 7
+#define ALPHA_ELEMENTS 25
 
 /*
  * Time (in milliseconds) to do certain tasks
@@ -871,7 +871,7 @@ int main(int argc, char **argv) {
 				 * ring and the number increments as we loop
 				 * towards the more outside rings.
 				 */
-				int num = (i / 4) + 3;
+				int num = (i / 4) + 4;
 
 				for (int j = 0; j < num; j++) {
 					ParticleNode *head = ringPtr->particleNode;
