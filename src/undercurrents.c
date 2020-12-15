@@ -607,6 +607,8 @@ void printUsage(FILE *s) {
 	fprintf(s, "Options\n");
 	fprintf(s, "    -h, --help                      "
 	    "print this message and exit\n");
+	fprintf(s, "    -p, --paused                    "
+	    "start in the 'paused' state\n");
 	fprintf(s, "    --configVariableName value      "
 	    "set a configuration variable, see below\n");
 	fprintf(s, "\n");
@@ -645,6 +647,9 @@ void parseArguments(char **argv) {
 			if (strcmp(arg, "help") == 0) {
 				printUsage(stdout);
 				exit(0);
+			} else if (strcmp(arg, "paused") == 0) {
+				paused = true;
+				goto loop;
 			}
 
 			/*
@@ -690,6 +695,9 @@ void parseArguments(char **argv) {
 			case 'h':
 				printUsage(stdout);
 				exit(0);
+			case 'p':
+				paused = true;
+				break;
 			default:
 				goto error;
 			}
@@ -698,6 +706,7 @@ void parseArguments(char **argv) {
 			goto error;
 		}
 
+loop:
 		argv++;
 	}
 
