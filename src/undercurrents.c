@@ -830,10 +830,8 @@ void processEvents() {
  */
 int main(int argc, char **argv) {
 	float rainbowIdx = 0;
-	int printStatusLineCounter = 0;
 	int addNewRingCounter = 0;
-	unsigned int currentTime;
-	unsigned int delta;
+	int printStatusLineCounter = 0;
 	unsigned int lastTime = 0;
 
 	// parse CLI options
@@ -866,6 +864,8 @@ int main(int argc, char **argv) {
 	running = true;
 	while (running) {
 		RingNode *ringPtr;
+		unsigned int currentTime;
+		unsigned int delta;
 
 		// calculate time since last iteration
 		currentTime = SDL_GetTicks();
