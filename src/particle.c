@@ -59,6 +59,8 @@ void particlePrint(Particle *p) {
 void particleCalculateCoordinates(Particle *p) {
 	while (p->position >= 360.0) { p->position -= 360.0; }
 	while (p->position < 0) { p->position += 360.0; }
+	assert(p->position >= 0);
+	assert(p->position < 360.0);
 
 	// shift degrees over 270 degrees (from 3 o'clock to 12 o'clock)
 	float degrees = p->position + 270.0f;
