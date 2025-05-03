@@ -202,8 +202,14 @@ struct GameState {
 	// How many particles are currently on the free list
 	unsigned int recycledParticles;
 
+	// When to add a new ring to the animation
+	int addNewRingCounter;
+
 	// The free particle list
 	ParticleNode *freeParticleNodes;
+
+	// Counter to determine when to print the status line
+	int printStatusLineCounter;
 
 	// If fading mode is enabled or disabled
 	bool fadingMode;
@@ -223,30 +229,32 @@ struct GameState {
 	// Magic colors (for use with ryb2rgb) randomized
 	float randomMagic[8][3];
 
+	// The current color in use
+	float rainbowIdx;
+
 	// Current color mode
 	int colorMode;
 
-	// SDL windows and render objects
-	SDL_Window *window;
-	SDL_Renderer *renderer;
-	SDL_Texture *canvas;
+	// Last time the loop ran
+	unsigned int lastTime;
 };
 
 static struct GameState gState = {
 	.rings = NULL,
 	.ringCount = 0,
+	.addNewRingCounter = 0,
 	.particleCount = 0,
 	.recycledParticles = 0,
 	.freeParticleNodes = NULL,
+	.printStatusLineCounter = 0,
 	.fadingMode = true,
 	.blankMode = false,
 	.linesEnabled = true,
 	.running = false,
 	.paused = false,
 	.colorMode = ColorModeSolid,
-	.window = NULL,
-	.renderer = NULL,
-	.canvas = NULL,
+	.rainbowIdx = 0,
+	.lastTime = 0,
 };
 
 // SDL windows and render objects
@@ -864,12 +872,231 @@ static void clearScreen(void) {
 	SDL_RenderFillRect(renderer, &screen);
 }
 
-int main(int argc, char **argv) {
-	float rainbowIdx = 0;
-	int addNewRingCounter = 0;
-	int printStatusLineCounter = 0;
-	unsigned int lastTime = 0;
+void mainLoop() {
+	RingNode *ringPtr;
+	unsigned int currentTime;
+	unsigned int delta;
 
+	// calculate time since last iteration
+	currentTime = SDL_GetTicks();
+	delta = currentTime - gState.lastTime;
+	gState.lastTime = currentTime;
+
+	// process events
+	processEvents();
+
+	// check if status line should be printed
+	gState.printStatusLineCounter -= delta;
+	if (gState.printStatusLineCounter <= 0) {
+		gState.printStatusLineCounter += timerPrintStatusLine;
+
+		printf("fps=%f ringCount=%u particleCount=%u "
+		    "recycledParticles=%u\n",
+		    1000.0 / delta, gState.ringCount, gState.particleCount,
+		    gState.recycledParticles);
+
+		int i = 0;
+		while (gState.printStatusLineCounter <= 0) {
+			i++;
+			gState.printStatusLineCounter += timerPrintStatusLine;
+		}
+		if (i > 0) {
+			fprintf(stderr,
+			    "[warn] missed %d status line calls\n", i);
+		}
+	}
+
+	// just end here if we are paused
+	if (gState.paused) {
+		goto show;
+	}
+
+	// start drawing to the canvas so can clear over it
+	SDL_SetRenderTarget(renderer, canvas);
+	clearScreen();
+
+	// check if new ring (and particles) should be created
+	gState.addNewRingCounter -= delta;
+	if (gState.addNewRingCounter <= 0) {
+		gState.addNewRingCounter += timerAddNewRing;
+
+		// add a new ring
+		addRing();
+
+		// recycle out-of-view rings
+		while (gState.ringCount > ringsMaximum) {
+			recycleLastRing();
+			gState.ringCount--;
+		}
+
+		// add particle(s) to each existing ring
+		ringPtr = gState.rings;
+		for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
+			/*
+			 * Calculate how many particles to add
+			 *
+			 * I'd like to make this function somehow more
+			 * configurable.  The basic idea is that 'i' is
+			 * the number of the current ring being
+			 * processed, where 0 is always the innermost
+			 * ring and the number increments as we loop
+			 * towards the more outside rings.
+			 */
+			int num = (i / 4) + 4;
+
+			for (int j = 0; j < num; j++) {
+				ParticleNode *head = ringPtr->particleNode;
+				ParticleNode *new = makeOrReclaimRandomizedParticleNode();
+
+				if (head != NULL) {
+					assert(head->particle);
+					/*
+					 * We use one of the particles
+					 * existing height as an offset
+					 * for the newly calculated
+					 * particle.  This is a little
+					 * sus but it works.
+					 */
+					new->particle->height += head->particle->height;
+				}
+
+				new->next = head;
+				ringPtr->particleNode = new;
+			}
+		}
+
+		int i = 0;
+		while (gState.addNewRingCounter <= 0) {
+			i++;
+			gState.addNewRingCounter += timerAddNewRing;
+		}
+		if (i > 0) {
+			fprintf(stderr, "[warn] missed %d add ring calls\n", i);
+		}
+	}
+
+	// Update rainbow index
+	gState.rainbowIdx += (float)delta / 1000.0 * particleColorSpeed;
+	while (gState.rainbowIdx > MAX_COLORS) {
+		gState.rainbowIdx -= MAX_COLORS;
+	}
+	while (gState.rainbowIdx <= 0) {
+		gState.rainbowIdx += MAX_COLORS;
+	}
+
+	// calculate new particle locations
+	ringPtr = gState.rings;
+	for (; ringPtr != NULL; ringPtr = ringPtr->next) {
+		ParticleNode *particlePtr = ringPtr->particleNode;
+
+		// loop particles in ring
+		for (; particlePtr != NULL; particlePtr = particlePtr->next) {
+			Particle *p = particlePtr->particle;
+
+			float speedRate = particleSpeedFactor / 100.0;
+
+			// update particle location
+			p->height += (float)delta * (float)particleExpandRate / 1000.0;
+			p->position += (float)delta * ((float)p->speed / p->height / 5.0 * speedRate);
+			particleCalculateCoordinates(p);
+
+			// reduce bornTimer by delta
+			if (p->bornTimer != 0) {
+				p->bornTimer -= delta;
+				if (p->bornTimer < 0) {
+					p->bornTimer = 0;
+				}
+			}
+		}
+	}
+
+	// just finish if blank mode is set
+	if (gState.blankMode) {
+		goto show;
+	}
+
+	// set the color here just once if in solid mode
+	if (gState.colorMode == ColorModeSolid) {
+		setDrawColor(gState.rainbowIdx, gState.randomMagic, alphaElements);
+	}
+
+	// draw the particles and lines, start by looping rings
+	ringPtr = gState.rings;
+	for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
+		ParticleNode *particlePtr = ringPtr->particleNode;
+
+		// set color here if ringed mode
+		if (gState.colorMode == ColorModeRinged) {
+			unsigned int idx = gState.rainbowIdx + (i * MAX_COLORS / ringsMaximum);
+			setDrawColor(idx, gState.randomMagic, alphaElements);
+		}
+
+		// loop particles in ring
+		for (; particlePtr != NULL; particlePtr = particlePtr->next) {
+			Particle *p = particlePtr->particle;
+
+			// check if particle is born
+			if (p->bornTimer > 0) {
+				continue;
+			}
+
+			// set color here if circular mode or random mode
+			if (gState.colorMode == ColorModeCircular) {
+				unsigned int idx = (unsigned int)(p->position / 360.0 * (float)MAX_COLORS);
+				idx = (idx + (int)gState.rainbowIdx) % MAX_COLORS;
+				setDrawColor(idx, gState.randomMagic, alphaElements);
+			} else if (gState.colorMode == ColorModeIndividual) {
+				setDrawColor(p->color + gState.rainbowIdx, gState.randomMagic, alphaElements);
+			}
+
+			// draw the particle
+			DrawParticle(p);
+
+			// stop here if lines aren't enabled
+			if (!gState.linesEnabled) {
+				continue;
+			}
+
+			// check if this ring has lines disabled
+			if (particleLineRingDisable != -1 && i > particleLineRingDisable) {
+				continue;
+			}
+
+			// draw connected lines to any particles NEXT
+			// in the ring/orbit
+			ParticleNode *particlePtr2 = particlePtr->next;
+			for (; particlePtr2 != NULL; particlePtr2 = particlePtr2->next) {
+				Particle *p2 = particlePtr2->particle;
+
+				if (p2->bornTimer > 0) {
+					continue;
+				}
+
+				float yd = p2->y -p->y;
+				float xd = p2->x -p->x;
+
+				// distance between 2 particles
+				float d = sqrt((xd * xd) + (yd * yd));
+
+				float maxDistance = (float)p->lineDistance * (particleLineDistanceFactor / 100.0);
+
+				// draw a line between the particles
+				if (d < maxDistance) {
+					DrawLinesConnectingParticles(p, p2);
+				}
+			}
+		}
+	}
+
+show:
+	SDL_SetRenderTarget(renderer, NULL);
+	SDL_RenderCopy(renderer, canvas, NULL, NULL);
+
+	SDL_RenderPresent(renderer);
+	SDL_Delay(1);
+}
+
+int main(int argc, char **argv) {
 	// parse CLI options
 	parseArguments(argv);
 
@@ -904,223 +1131,7 @@ int main(int argc, char **argv) {
 	SDL_SetRenderTarget(renderer, NULL);
 
 	while (gState.running) {
-		RingNode *ringPtr;
-		unsigned int currentTime;
-		unsigned int delta;
-
-		// calculate time since last iteration
-		currentTime = SDL_GetTicks();
-		delta = currentTime - lastTime;
-		lastTime = currentTime;
-
-		// process events
-		processEvents();
-
-		// check if status line should be printed
-		printStatusLineCounter -= delta;
-		if (printStatusLineCounter <= 0) {
-			printStatusLineCounter += timerPrintStatusLine;
-
-			printf("fps=%f ringCount=%u particleCount=%u "
-			    "recycledParticles=%u\n",
-			    1000.0 / delta, gState.ringCount, gState.particleCount,
-			    gState.recycledParticles);
-
-			int i = 0;
-			while (printStatusLineCounter <= 0) {
-				i++;
-				printStatusLineCounter += timerPrintStatusLine;
-			}
-			if (i > 0) {
-				fprintf(stderr,
-				    "[warn] missed %d status line calls\n", i);
-			}
-		}
-
-		// just end here if we are paused
-		if (gState.paused) {
-			goto show;
-		}
-
-		// start drawing to the canvas so can clear over it
-		SDL_SetRenderTarget(renderer, canvas);
-		clearScreen();
-
-		// check if new ring (and particles) should be created
-		addNewRingCounter -= delta;
-		if (addNewRingCounter <= 0) {
-			addNewRingCounter += timerAddNewRing;
-
-			// add a new ring
-			addRing();
-
-			// recycle out-of-view rings
-			while (gState.ringCount > ringsMaximum) {
-				recycleLastRing();
-				gState.ringCount--;
-			}
-
-			// add particle(s) to each existing ring
-			ringPtr = gState.rings;
-			for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
-				/*
-				 * Calculate how many particles to add
-				 *
-				 * I'd like to make this function somehow more
-				 * configurable.  The basic idea is that 'i' is
-				 * the number of the current ring being
-				 * processed, where 0 is always the innermost
-				 * ring and the number increments as we loop
-				 * towards the more outside rings.
-				 */
-				int num = (i / 4) + 4;
-
-				for (int j = 0; j < num; j++) {
-					ParticleNode *head = ringPtr->particleNode;
-					ParticleNode *new = makeOrReclaimRandomizedParticleNode();
-
-					if (head != NULL) {
-						assert(head->particle);
-						/*
-						 * We use one of the particles
-						 * existing height as an offset
-						 * for the newly calculated
-						 * particle.  This is a little
-						 * sus but it works.
-						 */
-						new->particle->height += head->particle->height;
-					}
-
-					new->next = head;
-					ringPtr->particleNode = new;
-				}
-			}
-
-			int i = 0;
-			while (addNewRingCounter <= 0) {
-				i++;
-				addNewRingCounter += timerAddNewRing;
-			}
-			if (i > 0) {
-				fprintf(stderr, "[warn] missed %d add ring calls\n", i);
-			}
-		}
-
-		// Update rainbow index
-		rainbowIdx += (float)delta / 1000.0 * particleColorSpeed;
-		while (rainbowIdx > MAX_COLORS) { rainbowIdx -= MAX_COLORS; }
-		while (rainbowIdx <= 0) { rainbowIdx += MAX_COLORS; }
-
-		// calculate new particle locations
-		ringPtr = gState.rings;
-		for (; ringPtr != NULL; ringPtr = ringPtr->next) {
-			ParticleNode *particlePtr = ringPtr->particleNode;
-
-			// loop particles in ring
-			for (; particlePtr != NULL; particlePtr = particlePtr->next) {
-				Particle *p = particlePtr->particle;
-
-				float speedRate = particleSpeedFactor / 100.0;
-
-				// update particle location
-				p->height += (float)delta * (float)particleExpandRate / 1000.0;
-				p->position += (float)delta * ((float)p->speed / p->height / 5.0 * speedRate);
-				particleCalculateCoordinates(p);
-
-				// reduce bornTimer by delta
-				if (p->bornTimer != 0) {
-					p->bornTimer -= delta;
-					if (p->bornTimer < 0) {
-						p->bornTimer = 0;
-					}
-				}
-			}
-		}
-
-		// just finish if blank mode is set
-		if (gState.blankMode) {
-			goto show;
-		}
-
-		// set the color here just once if in solid mode
-		if (gState.colorMode == ColorModeSolid) {
-			setDrawColor(rainbowIdx, gState.randomMagic, alphaElements);
-		}
-
-		// draw the particles and lines, start by looping rings
-		ringPtr = gState.rings;
-		for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
-			ParticleNode *particlePtr = ringPtr->particleNode;
-
-			// set color here if ringed mode
-			if (gState.colorMode == ColorModeRinged) {
-				unsigned int idx = rainbowIdx + (i * MAX_COLORS / ringsMaximum);
-				setDrawColor(idx, gState.randomMagic, alphaElements);
-			}
-
-			// loop particles in ring
-			for (; particlePtr != NULL; particlePtr = particlePtr->next) {
-				Particle *p = particlePtr->particle;
-
-				// check if particle is born
-				if (p->bornTimer > 0) {
-					continue;
-				}
-
-				// set color here if circular mode or random mode
-				if (gState.colorMode == ColorModeCircular) {
-					unsigned int idx = (unsigned int)(p->position / 360.0 * (float)MAX_COLORS);
-					idx = (idx + (int)rainbowIdx) % MAX_COLORS;
-					setDrawColor(idx, gState.randomMagic, alphaElements);
-				} else if (gState.colorMode == ColorModeIndividual) {
-					setDrawColor(p->color + rainbowIdx, gState.randomMagic, alphaElements);
-				}
-
-				// draw the particle
-				DrawParticle(p);
-
-				// stop here if lines aren't enabled
-				if (!gState.linesEnabled) {
-					continue;
-				}
-
-				// check if this ring has lines disabled
-				if (particleLineRingDisable != -1 && i > particleLineRingDisable) {
-					continue;
-				}
-
-				// draw connected lines to any particles NEXT
-				// in the ring/orbit
-				ParticleNode *particlePtr2 = particlePtr->next;
-				for (; particlePtr2 != NULL; particlePtr2 = particlePtr2->next) {
-					Particle *p2 = particlePtr2->particle;
-
-					if (p2->bornTimer > 0) {
-						continue;
-					}
-
-					float yd = p2->y -p->y;
-					float xd = p2->x -p->x;
-
-					// distance between 2 particles
-					float d = sqrt((xd * xd) + (yd * yd));
-
-					float maxDistance = (float)p->lineDistance * (particleLineDistanceFactor / 100.0);
-
-					// draw a line between the particles
-					if (d < maxDistance) {
-						DrawLinesConnectingParticles(p, p2);
-					}
-				}
-			}
-		}
-
-show:
-		SDL_SetRenderTarget(renderer, NULL);
-	        SDL_RenderCopy(renderer, canvas, NULL, NULL);
-
-		SDL_RenderPresent(renderer);
-		SDL_Delay(1);
+		mainLoop();
 	}
 
 	SDL_DestroyRenderer(renderer);
