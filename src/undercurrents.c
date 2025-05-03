@@ -492,21 +492,6 @@ void recycleLastRing() {
 }
 
 /*
- * Draw a line between 2 particles
- */
-void DrawLinesConnectingParticles(Particle *p1, Particle *p2) {
-	float x1 = (windowWidth / 2) + p1->x;
-	float y1 = (windowHeight / 2) + p1->y;
-	float x2 = (windowWidth / 2) + p2->x;
-	float y2 = (windowHeight / 2) + p2->y;
-
-	glBegin(GL_LINES);
-	glVertex2f(x1, y1);
-	glVertex2f(x2, y2);
-	glEnd();
-}
-
-/*
  * Generate random values for a magic color array (used by ryb2rgb)
  */
 void randomizeMagic(float magic[8][3]) {
@@ -516,19 +501,6 @@ void randomizeMagic(float magic[8][3]) {
 		}
 	}
 }
-
-/*
- * Set the glColor to the given rainbow index
- */
-void setColor(unsigned int idx, const float magic[8][3], int alpha) {
-	idx = idx % MAX_COLORS;
-	RGB rgb = rainbow(idx);
-	rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, magic);
-	float alphaF = fadingMode ? ((float)alpha / 100.0) : 1.00;;
-
-	glColor4f(rgb.r, rgb.g, rgb.b, alphaF);
-}
-
 
 /*
  * Print the current configuration settings to the given FILE stream
@@ -671,6 +643,7 @@ loop:
 	}
 
 	return;
+
 error:
 	fprintf(stderr, "invalid argument: '%s'\n\n", *argv);
 	printUsage(stderr);
@@ -818,7 +791,7 @@ static void DrawParticle(Particle *p) {
 }
 
 // Draw line between particles
-static void DrawLineParticles(Particle *p1, Particle *p2) {
+static void DrawLinesConnectingParticles(Particle *p1, Particle *p2) {
 	int x1 = windowWidth / 2 + (int)roundf(p1->x);
 	int y1 = windowHeight / 2 + (int)roundf(p1->y);
 	int x2 = windowWidth / 2 + (int)roundf(p2->x);
@@ -942,7 +915,7 @@ int main(int argc, char **argv) {
 
 		// just end here if we are paused
 		if (paused) {
-			goto swap;
+			goto show;
 		}
 
 		// start drawing to the canvas so can clear over it
@@ -990,7 +963,7 @@ int main(int argc, char **argv) {
 						 * for the newly calculated
 						 * particle.  This is a little
 						 * sus but it works.
-						 * */
+						 */
 						new->particle->height += head->particle->height;
 					}
 
@@ -1042,7 +1015,7 @@ int main(int argc, char **argv) {
 
 		// just finish if blank mode is set
 		if (blankMode) {
-			goto swap;
+			goto show;
 		}
 
 		// set the color here just once if in solid mode
@@ -1112,13 +1085,13 @@ int main(int argc, char **argv) {
 
 					// draw a line between the particles
 					if (d < maxDistance) {
-						DrawLineParticles(p, p2);
+						DrawLinesConnectingParticles(p, p2);
 					}
 				}
 			}
 		}
 
-swap:
+show:
 		SDL_SetRenderTarget(renderer, NULL);
 	        SDL_RenderCopy(renderer, canvas, NULL, NULL);
 
