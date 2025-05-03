@@ -9,7 +9,7 @@ else
 	GL := -lGL
 endif
 
-undercurrents: src/undercurrents.c src/ryb2rgb.o src/particle.o
+undercurrents: src/main.c src/ryb2rgb.o src/particle.o
 	$(CC) -o $@ `sdl2-config --libs --cflags` $(GL) -lm $(CFLAGS) $^
 
 src/ryb2rgb.o: src/ryb2rgb.c src/ryb2rgb.h
@@ -17,6 +17,10 @@ src/ryb2rgb.o: src/ryb2rgb.c src/ryb2rgb.h
 
 src/particle.o: src/particle.c src/particle.h
 	$(CC) -o $@ -c $(CFLAGS) $<
+
+.PHONY: run
+run: undercurrents
+	./undercurrents
 
 .PHONY: clean
 clean:
