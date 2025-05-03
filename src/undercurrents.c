@@ -225,6 +225,11 @@ float randomMagic[8][3];
 // Current color mode
 int currentColorMode = ColorModeSolid;
 
+// SDL windows and render objects
+static SDL_Window *window = NULL;
+static SDL_Renderer *renderer = NULL;
+static SDL_Texture *canvas = NULL;
+
 /*
  * All of the #defines above made available as global variables that can be
  * modified at runtime with CLI options.
@@ -295,6 +300,19 @@ char *colorModeToString(enum ColorMode mode) {
 	default: assert(false);
 	}
 	return s;
+}
+
+// Handle window resize
+static void handleResize(int newW, int newH) {
+	windowWidth = newW;
+	windowHeight = newH;
+
+	SDL_RenderSetLogicalSize(renderer, windowWidth, windowHeight);
+	SDL_DestroyTexture(canvas);
+	canvas = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+	    SDL_TEXTUREACCESS_TARGET, windowWidth, windowHeight);
+
+	printf("window size changed to %dx%d\n", windowWidth, windowHeight);
 }
 
 /*
@@ -474,43 +492,6 @@ void recycleLastRing() {
 }
 
 /*
- * Draw a circle at the given x and y coordinates with a radius r.
- *
- * Taken from http://slabode.exofire.net/circle_draw.shtml
- */
-void DrawCircle(float cx, float cy, float r) {
-	int num_segments = 10 * sqrtf(r);
-	float theta = 2 * M_PI / num_segments;
-	float c = cosf(theta);//precalculate the sine and cosine
-	float s = sinf(theta);
-	float t;
-
-	float x = r;//we start at angle = 0
-	float y = 0;
-
-	glBegin(GL_POLYGON);
-	for (int ii = 0; ii < num_segments; ii++) {
-		glVertex2f(x + cx, y + cy);//output vertex
-
-		//apply the rotation matrix
-		t = x;
-		x = c * x - s * y;
-		y = s * t + c * y;
-	}
-	glEnd();
-}
-
-/*
- * Draw a particle on the window
- */
-void DrawParticle(Particle *particle) {
-	float x = (windowWidth / 2) + particle->x;
-	float y = (windowHeight / 2) + particle->y;
-
-	DrawCircle(x, y, particle->radius);
-}
-
-/*
  * Draw a line between 2 particles
  */
 void DrawLinesConnectingParticles(Particle *p1, Particle *p2) {
@@ -548,27 +529,6 @@ void setColor(unsigned int idx, const float magic[8][3], int alpha) {
 	glColor4f(rgb.r, rgb.g, rgb.b, alphaF);
 }
 
-/*
- * Set/reset the screen (should be called on creation or resize).
- */
-void resetWindow(SDL_Window *window) {
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, windowWidth, windowHeight, 0, -1, 1);
-	glViewport(0, 0, windowWidth, windowHeight);
-	glEnable(GL_BLEND);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-
-	// clear both buffers initially
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	SDL_GL_SetSwapInterval(0);
-	SDL_GL_SwapWindow(window);
-	SDL_GL_SetSwapInterval(1);
-	glClear(GL_COLOR_BUFFER_BIT);
-}
 
 /*
  * Print the current configuration settings to the given FILE stream
@@ -722,7 +682,6 @@ error:
  */
 void processEvents() {
 	SDL_Event Event;
-	SDL_Window *window;
 	int i;
 	while (SDL_PollEvent(&Event)) {
 		switch (Event.type) {
@@ -735,7 +694,7 @@ void processEvents() {
 				windowWidth = Event.window.data1;
 				windowHeight = Event.window.data2;
 				window = SDL_GetWindowFromID(Event.window.windowID);
-				resetWindow(window);
+				handleResize(Event.window.data1, Event.window.data2);
 				printf("window size changed to %dx%d\n",
 				    windowWidth, windowHeight);
 				break;
@@ -825,9 +784,89 @@ void processEvents() {
 	}
 }
 
-/*
- * Main method!
- */
+// set the global draw color
+static void setDrawColor(unsigned int idx, const float magic[8][3], int alpha) {
+	idx %= MAX_COLORS;
+	RGB rgb = rainbow(idx);
+	rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, magic);
+
+	Uint8 a = fadingMode ? (Uint8)(alpha * 255 / 100) : 255;
+	SDL_SetRenderDrawColor(renderer,
+	    (Uint8)(rgb.r * 255.0f),
+	    (Uint8)(rgb.g * 255.0f),
+	    (Uint8)(rgb.b * 255.0f),
+	    a
+	);
+}
+
+// Draw a filled circle via scanlines
+static void DrawFilledCircle(int cx, int cy, int r) {
+	for (int dy = -r; dy <= r; dy++) {
+		int dx = (int)(sqrtf((float)(r*r - dy*dy)) + 0.5f);
+		SDL_RenderDrawLine(renderer,
+		    cx - dx, cy + dy,
+		    cx + dx, cy + dy
+		);
+	}
+}
+
+// Draw a single particle
+static void DrawParticle(Particle *p) {
+	int x = windowWidth / 2 + (int)roundf(p->x);
+	int y = windowHeight / 2 + (int)roundf(p->y);
+	DrawFilledCircle(x, y, p->radius);
+}
+
+// Draw line between particles
+static void DrawLineParticles(Particle *p1, Particle *p2) {
+	int x1 = windowWidth / 2 + (int)roundf(p1->x);
+	int y1 = windowHeight / 2 + (int)roundf(p1->y);
+	int x2 = windowWidth / 2 + (int)roundf(p2->x);
+	int y2 = windowHeight / 2 + (int)roundf(p2->y);
+	SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+}
+
+// Initialize SDL window & renderer
+static void initGraphics(void) {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+	    err(1, "SDL_Init: %s", SDL_GetError());
+    }
+
+    window = SDL_CreateWindow("Undercurrents",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        windowWidth, windowHeight,
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
+    );
+
+    if (window == NULL) {
+	    err(1, "SDL_CreateWindow: %s", SDL_GetError());
+    }
+
+    renderer = SDL_CreateRenderer(window, -1,
+        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
+    );
+
+    if (renderer == NULL) {
+	    err(1, "SDL_CreateRenderer: %s", SDL_GetError());
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+}
+
+// Clear screen with alpha blending
+static void clearScreen(void) {
+	Uint8 a = 255;
+	if (fadingMode) {
+		// this does not take FPS into account - we should probably do
+		// that
+		a = alphaBackground;
+	}
+
+	SDL_Rect screen = {0, 0, windowWidth, windowHeight};
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, a);
+	SDL_RenderFillRect(renderer, &screen);
+}
+
 int main(int argc, char **argv) {
 	float rainbowIdx = 0;
 	int addNewRingCounter = 0;
@@ -838,15 +877,7 @@ int main(int argc, char **argv) {
 	parseArguments(argv);
 
 	// initalize SDL and OpenGL window
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_Window *window = SDL_CreateWindow("Undercurrents", 0, 0,
-	    windowWidth, windowHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-	assert(window != NULL);
-	SDL_GLContext context = SDL_GL_CreateContext(window);
-	assert(context != NULL);
-
-	// initialize the screen/viewport/background color
-	resetWindow(window);
+	initGraphics();
 
 	// initialize random
 	srand(time(NULL));
@@ -862,6 +893,19 @@ int main(int argc, char **argv) {
 
 	// main loop
 	running = true;
+
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+	SDL_RenderClear(renderer);
+
+	canvas = SDL_CreateTexture(renderer,
+	    SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+	    windowWidth, windowHeight);
+
+	SDL_SetRenderTarget(renderer, canvas);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
+	SDL_SetRenderTarget(renderer, NULL);
+
 	while (running) {
 		RingNode *ringPtr;
 		unsigned int currentTime;
@@ -901,10 +945,9 @@ int main(int argc, char **argv) {
 			goto swap;
 		}
 
-		// clear screen
-		float alpha = fadingMode ? ((float)alphaBackground / 100.0) : 1.0;
-		glColor4f(0.0f, 0.0f, 0.0f, alpha);
-		glRecti(0, 0, windowWidth, windowHeight);
+		// start drawing to the canvas so can clear over it
+		SDL_SetRenderTarget(renderer, canvas);
+		clearScreen();
 
 		// check if new ring (and particles) should be created
 		addNewRingCounter -= delta;
@@ -947,7 +990,7 @@ int main(int argc, char **argv) {
 						 * for the newly calculated
 						 * particle.  This is a little
 						 * sus but it works.
-						 */
+						 * */
 						new->particle->height += head->particle->height;
 					}
 
@@ -1004,7 +1047,7 @@ int main(int argc, char **argv) {
 
 		// set the color here just once if in solid mode
 		if (currentColorMode == ColorModeSolid) {
-			setColor(rainbowIdx, randomMagic, alphaElements);
+			setDrawColor(rainbowIdx, randomMagic, alphaElements);
 		}
 
 		// draw the particles and lines, start by looping rings
@@ -1015,7 +1058,7 @@ int main(int argc, char **argv) {
 			// set color here if ringed mode
 			if (currentColorMode == ColorModeRinged) {
 				unsigned int idx = rainbowIdx + (i * MAX_COLORS / ringsMaximum);
-				setColor(idx, randomMagic, alphaElements);
+				setDrawColor(idx, randomMagic, alphaElements);
 			}
 
 			// loop particles in ring
@@ -1031,9 +1074,9 @@ int main(int argc, char **argv) {
 				if (currentColorMode == ColorModeCircular) {
 					unsigned int idx = (unsigned int)(p->position / 360.0 * (float)MAX_COLORS);
 					idx = (idx + (int)rainbowIdx) % MAX_COLORS;
-					setColor(idx, randomMagic, alphaElements);
+					setDrawColor(idx, randomMagic, alphaElements);
 				} else if (currentColorMode == ColorModeIndividual) {
-					setColor(p->color + rainbowIdx, randomMagic, alphaElements);
+					setDrawColor(p->color + rainbowIdx, randomMagic, alphaElements);
 				}
 
 				// draw the particle
@@ -1069,17 +1112,23 @@ int main(int argc, char **argv) {
 
 					// draw a line between the particles
 					if (d < maxDistance) {
-						DrawLinesConnectingParticles(p, p2);
+						DrawLineParticles(p, p2);
 					}
 				}
 			}
 		}
 
 swap:
-		// swap windows
-		SDL_GL_SwapWindow(window);
+		SDL_SetRenderTarget(renderer, NULL);
+	        SDL_RenderCopy(renderer, canvas, NULL, NULL);
+
+		SDL_RenderPresent(renderer);
 		SDL_Delay(1);
 	}
+
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 
 	return 0;
 }
