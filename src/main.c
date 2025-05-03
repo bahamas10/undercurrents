@@ -189,41 +189,65 @@ typedef struct RingNode {
 	struct RingNode *next;
 } RingNode;
 
-// Linked list of existing rings
-RingNode *rings = NULL;
+struct GameState {
+	// Linked list of existing rings
+	RingNode *rings;
 
-// How many rings are currently active
-unsigned int ringCount = 0;
+	// How many rings are (currently active)
+	unsigned int ringCount;
 
-// How many particles are currently allocated
-unsigned int particleCount = 0;
+	// How many particles are currently allocated
+	unsigned int particleCount;
 
-// How many particles are currently on the free list
-unsigned int recycledParticles = 0;
+	// How many particles are currently on the free list
+	unsigned int recycledParticles;
 
-// The free particle list
-ParticleNode *freeParticleNodes = NULL;
+	// The free particle list
+	ParticleNode *freeParticleNodes;
 
-// If fading mode is enabled or disabled
-bool fadingMode = true;
+	// If fading mode is enabled or disabled
+	bool fadingMode;
 
-// If blank mode is enabled or disabled
-bool blankMode = false;
+	// If blank mode is enabled or disabled
+	bool blankMode;
 
-// If lines should be drawn
-bool linesEnabled = true;
+	// If lines should be drawn
+	bool linesEnabled;
 
-// If the program is running
-bool running = false;
+	// If the program is running
+	bool running;
 
-// If the animation is paused
-bool paused = false;
+	// If the animation is paused
+	bool paused;
 
-// Magic colors (for use with ryb2rgb) randomized
-float randomMagic[8][3];
+	// Magic colors (for use with ryb2rgb) randomized
+	float randomMagic[8][3];
 
-// Current color mode
-int currentColorMode = ColorModeSolid;
+	// Current color mode
+	int colorMode;
+
+	// SDL windows and render objects
+	SDL_Window *window;
+	SDL_Renderer *renderer;
+	SDL_Texture *canvas;
+};
+
+static struct GameState gState = {
+	.rings = NULL,
+	.ringCount = 0,
+	.particleCount = 0,
+	.recycledParticles = 0,
+	.freeParticleNodes = NULL,
+	.fadingMode = true,
+	.blankMode = false,
+	.linesEnabled = true,
+	.running = false,
+	.paused = false,
+	.colorMode = ColorModeSolid,
+	.window = NULL,
+	.renderer = NULL,
+	.canvas = NULL,
+};
 
 // SDL windows and render objects
 static SDL_Window *window = NULL;
@@ -396,7 +420,7 @@ Particle *createParticle() {
 	if (p == NULL) {
 		err(2, "createParticle");
 	}
-	particleCount++;
+	gState.particleCount++;
 	return p;
 }
 
@@ -409,8 +433,8 @@ ParticleNode *makeOrReclaimRandomizedParticleNode() {
 	ParticleNode *particleNode;
 	Particle *p;
 
-	if (freeParticleNodes == NULL) {
-		assert(recycledParticles == 0);
+	if (gState.freeParticleNodes == NULL) {
+		assert(gState.recycledParticles == 0);
 
 		// allocate a new particle and particleNode
 		particleNode = safeMalloc(sizeof (ParticleNode),
@@ -420,9 +444,9 @@ ParticleNode *makeOrReclaimRandomizedParticleNode() {
 		particleNode->particle = p;
 	} else {
 		// reclaim an existing particle
-		particleNode = freeParticleNodes;
-		freeParticleNodes = freeParticleNodes->next;
-		recycledParticles--;
+		particleNode = gState.freeParticleNodes;
+		gState.freeParticleNodes = gState.freeParticleNodes->next;
+		gState.recycledParticles--;
 	}
 
 	particleNode->next = NULL;
@@ -441,17 +465,17 @@ void addRing() {
 	    "addRing malloc RingNode");
 
 	ringNode->particleNode = NULL;
-	ringNode->next = rings;
+	ringNode->next = gState.rings;
 
-	rings = ringNode;
-	ringCount++;
+	gState.rings = ringNode;
+	gState.ringCount++;
 }
 
 /*
  * Remove the last ring from the rings linked list tail.
  */
 void recycleLastRing() {
-	RingNode *ringPtr = rings;
+	RingNode *ringPtr = gState.rings;
 
 	// fast forward ringPtr to second last item
 	while (ringPtr != NULL && ringPtr->next != NULL &&
@@ -480,9 +504,9 @@ void recycleLastRing() {
 	while (cur != NULL) {
 		ParticleNode *next = cur->next;
 
-		cur->next = freeParticleNodes;
-		freeParticleNodes = cur;
-		recycledParticles++;
+		cur->next = gState.freeParticleNodes;
+		gState.freeParticleNodes = cur;
+		gState.recycledParticles++;
 
 		cur = next;
 	}
@@ -580,7 +604,7 @@ void parseArguments(char **argv) {
 				printUsage(stdout);
 				exit(0);
 			} else if (strcmp(arg, "paused") == 0) {
-				paused = true;
+				gState.paused = true;
 				goto loop;
 			}
 
@@ -628,7 +652,7 @@ void parseArguments(char **argv) {
 				printUsage(stdout);
 				exit(0);
 			case 'p':
-				paused = true;
+				gState.paused = true;
 				break;
 			default:
 				goto error;
@@ -659,7 +683,7 @@ void processEvents() {
 	while (SDL_PollEvent(&Event)) {
 		switch (Event.type) {
 		case SDL_QUIT:
-			running = false;
+			gState.running = false;
 			break;
 		case SDL_WINDOWEVENT:
 			switch (Event.window.event) {
@@ -676,7 +700,7 @@ void processEvents() {
 		case SDL_KEYDOWN:
 			switch (Event.key.keysym.sym) {
 			case SDLK_ESCAPE:
-				running = false;
+				gState.running = false;
 				break;
 			case SDLK_UP:
 				particleSpeedFactor++;
@@ -704,47 +728,47 @@ void processEvents() {
 				break;
 			case SDLK_b:
 				// b = blank
-				blankMode = !blankMode;
+				gState.blankMode = !gState.blankMode;
 				printf("blank %s\n",
-				    blankMode ? "enabled" : "disabled");
+				    gState.blankMode ? "enabled" : "disabled");
 				break;
 			case SDLK_c:
 				// c = clear
 				i = 0;
-				while (ringCount > 0) {
+				while (gState.ringCount > 0) {
 					recycleLastRing();
-					ringCount--;
+					gState.ringCount--;
 					i++;
 				}
 				printf("cleared %d rings\n", i);
 				break;
 			case SDLK_f:
 				// f = fading
-				fadingMode = !fadingMode;
+				gState.fadingMode = !gState.fadingMode;
 				printf("fading %s\n",
-				    fadingMode ? "enabled" : "disabled");
+				    gState.fadingMode ? "enabled" : "disabled");
 				break;
 			case SDLK_l:
 				// l = lines
-				linesEnabled = !linesEnabled;
+				gState.linesEnabled = !gState.linesEnabled;
 				printf("lines %s\n",
-				    linesEnabled ? "enabled" : "disabled");
+				    gState.linesEnabled ? "enabled" : "disabled");
 				break;
 			case SDLK_m:
 				// m = color mode
-				currentColorMode = (currentColorMode + 1) % 4;
-				printf("currentColorMode = %s\n",
-				    colorModeToString(currentColorMode));
+				gState.colorMode = (gState.colorMode + 1) % 4;
+				printf("gState.colorMode = %s\n",
+				    colorModeToString(gState.colorMode));
 				break;
 			case SDLK_p:
 				// p = play/pause
-				paused = !paused;
+				gState.paused = !gState.paused;
 				printf("%s\n",
-				    paused ? "paused" : "unpaused");
+				    gState.paused ? "paused" : "unpaused");
 				break;
 			case SDLK_r:
 				// r = randomize colors
-				randomizeMagic(randomMagic);
+				randomizeMagic(gState.randomMagic);
 				printf("randomized colors\n");
 				break;
 			default:
@@ -763,7 +787,7 @@ static void setDrawColor(unsigned int idx, const float magic[8][3], int alpha) {
 	RGB rgb = rainbow(idx);
 	rgb = interpolate2rgb(rgb.r, rgb.g, rgb.b, magic);
 
-	Uint8 a = fadingMode ? (Uint8)(alpha * 255 / 100) : 255;
+	Uint8 a = gState.fadingMode ? (Uint8)(alpha * 255 / 100) : 255;
 	SDL_SetRenderDrawColor(renderer,
 	    (Uint8)(rgb.r * 255.0f),
 	    (Uint8)(rgb.g * 255.0f),
@@ -829,7 +853,7 @@ static void initGraphics(void) {
 // Clear screen with alpha blending
 static void clearScreen(void) {
 	Uint8 a = 255;
-	if (fadingMode) {
+	if (gState.fadingMode) {
 		// this does not take FPS into account - we should probably do
 		// that
 		a = alphaBackground;
@@ -856,7 +880,7 @@ int main(int argc, char **argv) {
 	srand(time(NULL));
 
 	// initialize random colors
-	randomizeMagic(randomMagic);
+	randomizeMagic(gState.randomMagic);
 
 	// print config and controls
 	printConfiguration(stdout);
@@ -865,7 +889,7 @@ int main(int argc, char **argv) {
 	printf("\n");
 
 	// main loop
-	running = true;
+	gState.running = true;
 
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	SDL_RenderClear(renderer);
@@ -879,7 +903,7 @@ int main(int argc, char **argv) {
 	SDL_RenderClear(renderer);
 	SDL_SetRenderTarget(renderer, NULL);
 
-	while (running) {
+	while (gState.running) {
 		RingNode *ringPtr;
 		unsigned int currentTime;
 		unsigned int delta;
@@ -899,8 +923,8 @@ int main(int argc, char **argv) {
 
 			printf("fps=%f ringCount=%u particleCount=%u "
 			    "recycledParticles=%u\n",
-			    1000.0 / delta, ringCount, particleCount,
-			    recycledParticles);
+			    1000.0 / delta, gState.ringCount, gState.particleCount,
+			    gState.recycledParticles);
 
 			int i = 0;
 			while (printStatusLineCounter <= 0) {
@@ -914,7 +938,7 @@ int main(int argc, char **argv) {
 		}
 
 		// just end here if we are paused
-		if (paused) {
+		if (gState.paused) {
 			goto show;
 		}
 
@@ -931,13 +955,13 @@ int main(int argc, char **argv) {
 			addRing();
 
 			// recycle out-of-view rings
-			while (ringCount > ringsMaximum) {
+			while (gState.ringCount > ringsMaximum) {
 				recycleLastRing();
-				ringCount--;
+				gState.ringCount--;
 			}
 
 			// add particle(s) to each existing ring
-			ringPtr = rings;
+			ringPtr = gState.rings;
 			for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
 				/*
 				 * Calculate how many particles to add
@@ -988,7 +1012,7 @@ int main(int argc, char **argv) {
 		while (rainbowIdx <= 0) { rainbowIdx += MAX_COLORS; }
 
 		// calculate new particle locations
-		ringPtr = rings;
+		ringPtr = gState.rings;
 		for (; ringPtr != NULL; ringPtr = ringPtr->next) {
 			ParticleNode *particlePtr = ringPtr->particleNode;
 
@@ -1014,24 +1038,24 @@ int main(int argc, char **argv) {
 		}
 
 		// just finish if blank mode is set
-		if (blankMode) {
+		if (gState.blankMode) {
 			goto show;
 		}
 
 		// set the color here just once if in solid mode
-		if (currentColorMode == ColorModeSolid) {
-			setDrawColor(rainbowIdx, randomMagic, alphaElements);
+		if (gState.colorMode == ColorModeSolid) {
+			setDrawColor(rainbowIdx, gState.randomMagic, alphaElements);
 		}
 
 		// draw the particles and lines, start by looping rings
-		ringPtr = rings;
+		ringPtr = gState.rings;
 		for (int i = 0; ringPtr != NULL; ringPtr = ringPtr->next, i++) {
 			ParticleNode *particlePtr = ringPtr->particleNode;
 
 			// set color here if ringed mode
-			if (currentColorMode == ColorModeRinged) {
+			if (gState.colorMode == ColorModeRinged) {
 				unsigned int idx = rainbowIdx + (i * MAX_COLORS / ringsMaximum);
-				setDrawColor(idx, randomMagic, alphaElements);
+				setDrawColor(idx, gState.randomMagic, alphaElements);
 			}
 
 			// loop particles in ring
@@ -1044,19 +1068,19 @@ int main(int argc, char **argv) {
 				}
 
 				// set color here if circular mode or random mode
-				if (currentColorMode == ColorModeCircular) {
+				if (gState.colorMode == ColorModeCircular) {
 					unsigned int idx = (unsigned int)(p->position / 360.0 * (float)MAX_COLORS);
 					idx = (idx + (int)rainbowIdx) % MAX_COLORS;
-					setDrawColor(idx, randomMagic, alphaElements);
-				} else if (currentColorMode == ColorModeIndividual) {
-					setDrawColor(p->color + rainbowIdx, randomMagic, alphaElements);
+					setDrawColor(idx, gState.randomMagic, alphaElements);
+				} else if (gState.colorMode == ColorModeIndividual) {
+					setDrawColor(p->color + rainbowIdx, gState.randomMagic, alphaElements);
 				}
 
 				// draw the particle
 				DrawParticle(p);
 
 				// stop here if lines aren't enabled
-				if (!linesEnabled) {
+				if (!gState.linesEnabled) {
 					continue;
 				}
 
