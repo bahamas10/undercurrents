@@ -3,6 +3,8 @@ Undercurrents
 
 Visualizer made in C and OpenGL with SDL2.
 
+- View it on the web with wasm: https://undercurrents.ysap.sh
+
 About
 -----
 

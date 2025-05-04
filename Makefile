@@ -37,6 +37,10 @@ web:
 serve:
 	emrun web/_site/index.html
 
+# deploy the website
+.PHONY: deploy
+deploy:
+	rsync -avh --delete ./web/_site/ web:/var/www/undercurrents.ysap.sh/
 
 # clean up any generated files
 .PHONY: clean
