@@ -57,14 +57,18 @@
 #include <SDL2/SDL_opengl.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "particle.h"
 #include "ryb2rgb.h"
 
 // Configuration
 
 // Window width and height
-#define WINDOW_WIDTH 1200
-#define WINDOW_HEIGHT 1200
+#define WINDOW_WIDTH 640
+#define WINDOW_HEIGHT 480
 
 /*
  * Maximum particle circular speed.  Each particle will have a speed between
@@ -151,7 +155,7 @@
  * This number should be between 0 (fully transparent) and 100 (fully opaque).
  */
 #define ALPHA_BACKGROUND 7
-#define ALPHA_ELEMENTS 25
+#define ALPHA_ELEMENTS 50
 
 /*
  * Time (in milliseconds) to do certain tasks
@@ -334,6 +338,14 @@ char *colorModeToString(enum ColorMode mode) {
 	return s;
 }
 
+static SDL_Texture *createCanvas() {
+	SDL_Texture *texture = SDL_CreateTexture(renderer,
+	    SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+	    windowWidth, windowHeight);
+	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+	return texture;
+}
+
 // Handle window resize
 static void handleResize(int newW, int newH) {
 	windowWidth = newW;
@@ -341,8 +353,7 @@ static void handleResize(int newW, int newH) {
 
 	SDL_RenderSetLogicalSize(renderer, windowWidth, windowHeight);
 	SDL_DestroyTexture(canvas);
-	canvas = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
-	    SDL_TEXTUREACCESS_TARGET, windowWidth, windowHeight);
+	canvas = createCanvas();
 
 	printf("window size changed to %dx%d\n", windowWidth, windowHeight);
 }
@@ -555,11 +566,12 @@ void printControls(FILE *s) {
 	fprintf(s, "- press up / down to modify particle speed\n");
 	fprintf(s, "- press left / right to modify particle line distance factor\n");
 	fprintf(s, "- press 'b' to toggle blank mode\n");
+	fprintf(s, "- press 'c' to clear all particles\n");
 	fprintf(s, "- press 'f' to toggle fading mode\n");
 	fprintf(s, "- press 'l' to toggle particle lines mode\n");
 	fprintf(s, "- press 'm' to toggle color modes\n");
-	fprintf(s, "- press 'r' to randomize colors\n");
 	fprintf(s, "- press 'p' to pause or unpause visuals\n");
+	fprintf(s, "- press 'r' to randomize colors\n");
 }
 
 /*
@@ -765,7 +777,7 @@ void processEvents() {
 			case SDLK_m:
 				// m = color mode
 				gState.colorMode = (gState.colorMode + 1) % 4;
-				printf("gState.colorMode = %s\n",
+				printf("colorMode = %s\n",
 				    colorModeToString(gState.colorMode));
 				break;
 			case SDLK_p:
@@ -872,10 +884,15 @@ static void clearScreen(void) {
 	SDL_RenderFillRect(renderer, &screen);
 }
 
-void mainLoop() {
+static void mainLoop() {
 	RingNode *ringPtr;
 	unsigned int currentTime;
 	unsigned int delta;
+
+	// clear the main screen
+	SDL_SetRenderTarget(renderer, NULL);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
 
 	// calculate time since last iteration
 	currentTime = SDL_GetTicks();
@@ -936,11 +953,10 @@ void mainLoop() {
 			 * Calculate how many particles to add
 			 *
 			 * I'd like to make this function somehow more
-			 * configurable.  The basic idea is that 'i' is
-			 * the number of the current ring being
-			 * processed, where 0 is always the innermost
-			 * ring and the number increments as we loop
-			 * towards the more outside rings.
+			 * configurable.  The basic idea is that 'i' is the
+			 * number of the current ring being processed, where 0
+			 * is always the innermost ring and the number
+			 * increments as we loop towards the more outside rings.
 			 */
 			int num = (i / 4) + 4;
 
@@ -951,11 +967,10 @@ void mainLoop() {
 				if (head != NULL) {
 					assert(head->particle);
 					/*
-					 * We use one of the particles
-					 * existing height as an offset
-					 * for the newly calculated
-					 * particle.  This is a little
-					 * sus but it works.
+					 * We use one of the particles existing
+					 * height as an offset for the newly
+					 * calculated particle.  This is a
+					 * little sus but it works.
 					 */
 					new->particle->height += head->particle->height;
 				}
@@ -1089,9 +1104,11 @@ void mainLoop() {
 	}
 
 show:
+	// render the canvas onto the window
 	SDL_SetRenderTarget(renderer, NULL);
 	SDL_RenderCopy(renderer, canvas, NULL, NULL);
 
+	// show the new window
 	SDL_RenderPresent(renderer);
 	SDL_Delay(1);
 }
@@ -1118,20 +1135,15 @@ int main(int argc, char **argv) {
 	// main loop
 	gState.running = true;
 
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-	SDL_RenderClear(renderer);
-
-	canvas = SDL_CreateTexture(renderer,
-	    SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
-	    windowWidth, windowHeight);
-
-	SDL_SetRenderTarget(renderer, canvas);
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-	SDL_RenderClear(renderer);
-	SDL_SetRenderTarget(renderer, NULL);
+	// create the canvas and set options
+	canvas = createCanvas();
 
 	while (gState.running) {
+#if __EMSCRIPTEN__
+		emscripten_set_main_loop(mainLoop, -1, 1);
+#else
 		mainLoop();
+#endif
 	}
 
 	SDL_DestroyRenderer(renderer);

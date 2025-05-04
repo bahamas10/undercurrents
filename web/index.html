@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+		<link rel="stylesheet" href="/style.css?v=1">
+
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=PT+Mono&display=swap" rel="stylesheet">
+	</head>
+	<body>
+		<div id="container">
+			<h1 class="title center">Undercurrents</h1>
+			<div class="center">
+				<canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+				<script type='text/javascript'>
+					var Module = {
+						canvas: (function() { return document.getElementById('canvas'); })()
+					};
+				</script>
+			</div>
+
+			<h1 class="title">Controls</h2>
+			<ul class="controls">
+				<li>press <span class="highlight">up</span> / <span class="highlight">down</span> to modify particle speed</li>
+				<li>press <span class="highlight">left</span> / <span class="highlight">right</span> to modify particle line distance factor</li>
+				<li>press <span class="highlight">b</span> to toggle blank mode</li>
+				<li>press <span class="highlight">c</span> to clear all particles</li>
+				<li>press <span class="highlight">f</span> to toggle fading mode</li>
+				<li>press <span class="highlight">l</span> to toggle particle lines mode</li>
+				<li>press <span class="highlight">m</span> to toggle color modes</li>
+				<li>press <span class="highlight">p</span> to pause or unpause visuals</li>
+				<li>press <span class="highlight">r</span> to randomize colors</li>
+			</ul>
+			<h1 class="title">More</h2>
+			<ul class="more">
+				<li><a href="/debug.html">Debug Mode</a> - Run with the console</li>
+				<li><a href="https://github.com/bahamas10/undercurrents">Source Code</a> - on GitHub</li>
+				<li><a href="https://www.youtube.com/watch?v=bkAQWANJrQU">YouTube Version</a> - With my own music</li>
+			</ul>
+			<h1 class="title">Notes</h2>
+			<div class="notes">
+			This code relies on preserving the drawing buffer for
+			the "fading" effect to work properly which currently is
+			not working in the web/wasm version of this.  This means
+			that toggling fade mode with <span class="highlight">f</span>
+			may not work as expected in this web version.  To see
+			the full effect check out the YouTube version above or
+			build this code for your desktop.
+			</div>
+<pre class="footer"><code>
+source: <a class="alt" href="https://github.com/bahamas10/undercurrents">github.com/bahamas10/undercurrents</a>
+&copy; dave eddy - <a class="alt" href="https://ysap.sh">ysap</a> <script>document.write(new Date().getFullYear())</script>
+			</code></pre>
+		</div>
+		<script src="debug.js"></script>
+	</body>
+</html>

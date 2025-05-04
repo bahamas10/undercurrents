@@ -44,8 +44,8 @@ Options
     ie: undcurrents --windowHeight 500 --windowWidth 700 --ringsMaximum 20
 
 Configuration
-  windowWidth=1200
-  windowHeight=1200
+  windowWidth=640
+  windowHeight=480
   particleSpeedMaximum=30
   particleSpeedFactor=100
   particleRadiusMinimum=1
@@ -60,7 +60,7 @@ Configuration
   particleColorSpeed=50
   ringsMaximum=35
   alphaBackground=7
-  alphaElements=25
+  alphaElements=50
   timerPrintStatusLine=2000
   timerAddNewRing=1000
 
@@ -68,11 +68,13 @@ Controls
 - press up / down to modify particle speed
 - press left / right to modify particle line distance factor
 - press 'b' to toggle blank mode
+- press 'c' to clear all particles
 - press 'f' to toggle fading mode
 - press 'l' to toggle particle lines mode
 - press 'm' to toggle color modes
-- press 'r' to randomize colors
 - press 'p' to pause or unpause visuals
+- press 'r' to randomize colors
+
 ```
 
 License
